@@ -24,6 +24,8 @@ async fn main() -> Result<()> {
         .await
         .unwrap();
 
+    // let a = sqlx::query_as(sql)
+
     println!("{:?}", users);
 
     Ok(())

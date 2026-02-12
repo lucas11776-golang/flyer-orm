@@ -18,16 +18,24 @@ impl SQLite {
 }
 
 impl Executor for SQLite {
-    async fn get<O>(&self, statement: Statement) -> Result<Vec<O>>
+    async fn get<T: sqlx::Database, O>(&self, statement: Statement) -> Result<Vec<O>>
     where
-        O: for<'r> FromRow<'r,  <sqlx::Any as sqlx::Database>::Row> + Send + Unpin
+        O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin
     {
-        todo!()
+        // Ok(
+        //     sqlx::query_as::<_, O>(format!("SELECT * FROM `{}`", statement.table))
+        //         .fetch_all(&self.db)
+        //         .await
+        //         .unwrap()
+        // );
+
+
+        todo!();
     }
 
-    async fn pagination<O>(&self, statement: Statement) -> Result<Pagination<O>>
+    async fn pagination<T: sqlx::Database, O>(&self, statement: Statement) -> Result<Pagination<O>>
     where
-        O: for<'r> FromRow<'r,  <sqlx::Any as sqlx::Database>::Row> + Send + Unpin
+        O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin
     {
         todo!()
     }

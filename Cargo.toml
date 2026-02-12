@@ -15,4 +15,5 @@ serde = "1.0.228"
 serde_json = "1.0.149"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 sqlx = { version = "0.8.6",features = ["any", "sqlite", "mysql", "postgres", "macros", "runtime-tokio-native-tls"] }
+async-trait = "0.1.89"
 

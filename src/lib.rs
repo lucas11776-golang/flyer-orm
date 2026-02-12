@@ -1,3 +1,5 @@
+// #![feature(non_lifetime_binders)]
+
 pub mod sqlite;
 pub mod postgres;
 pub mod mysql;
@@ -10,7 +12,10 @@ use sqlx::{FromRow, any::{install_default_drivers, install_drivers}};
 
 use crate::query::{Pagination, Query, Statement};
 
+
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, Box<dyn std::any::Any>>> = LazyLock::new(|| HashMap::new());
+
+
 
 pub struct DB;
 
@@ -48,11 +53,11 @@ impl DB {
 }
 
 pub trait Executor: Send + Sync {
-    fn get<O>(&self, statement: Statement) -> impl std::future::Future<Output = Result<Vec<O>>> + Send
+    fn get<T: sqlx::Database, O>(&self, statement: Statement) -> impl std::future::Future<Output = Result<Vec<O>>> + Send
     where
-        O: for<'r> FromRow<'r,  <sqlx::Any as sqlx::Database>::Row> + Send + Unpin;
+        O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin;
 
-    fn pagination<O>(&self, statement: Statement) -> impl std::future::Future<Output = Result<Pagination<O>>> + Send
+    fn pagination<T: sqlx::Database, O>(&self, statement: Statement) -> impl std::future::Future<Output = Result<Pagination<O>>> + Send
     where
-        O: for<'r> FromRow<'r,  <sqlx::Any as sqlx::Database>::Row> + Send + Unpin;
+        O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin;
 }

@@ -17,18 +17,18 @@ impl Postgres {
     }
 }
 
-impl Executor for Postgres {
-    async fn get<T: sqlx::Database, O>(&self, statement: Statement) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin
-    {
-        todo!()
-    }
+// impl Executor for Postgres {
+//     async fn get<T: sqlx::Database, O>(&self, statement: Statement) -> Result<Vec<O>>
+//     where
+//         O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin
+//     {
+//         todo!()
+//     }
 
-    async fn pagination<T: sqlx::Database, O>(&self, statement: Statement) -> Result<Pagination<O>>
-    where
-        O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin
-    {
-        todo!()
-    }
-}
+//     async fn pagination<T: sqlx::Database, O>(&self, statement: Statement) -> Result<Pagination<O>>
+//     where
+//         O: for<'r> FromRow<'r,  <T as sqlx::Database>::Row> + Send + Unpin
+//     {
+//         todo!()
+//     }
+// }

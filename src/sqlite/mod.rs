@@ -1,69 +1,37 @@
 mod builder;
 
 use anyhow::Result;
-use sqlx::{FromRow, Pool, SqlitePool};
+use sqlx::Pool;
 
-use crate::{Executor, query::{Pagination, Statement}};
+use crate::{Executor, query::{Statement}};
 
-
-#[derive(Debug)]
-pub struct SQLite {
-    // db: Pool<sqlx::sqlite::Sqlite>,
-}
-
-// impl SQLite {
-//     pub async fn connect(url: &str) -> Result<Self> {
-//         return Ok(Self {
-//             db: SqlitePool::connect(url).await.unwrap()
-//         });
-//     }
-// }
-
+#[derive(Default)]
+pub struct SQLite;
 
 impl Executor for SQLite {
     type T = sqlx::Sqlite;
 
-
-    async fn connect(url: &str) -> Self {
-        return Self {
-
-        }
+    async fn db(&self, url: &str) -> Result<Pool<Self::T>> {
+        return Ok(sqlx::SqlitePool::connect(url).await.unwrap());
     }
-
-    fn table(&mut self, name: &str) -> &mut Self {
-        todo!()
-    }
-
-    fn select(&mut self, columns: Vec<&str>) -> &mut Self {
-        todo!()
-    }
-
-    fn order_by(&mut self, column: &str, order: crate::query::Order) -> &mut Self {
-        todo!()
-    }
-
-    fn limit(&mut self, limit: u64) -> &mut Self {
-        todo!()
-    }
-
-    async fn first<O>(&self) -> Result<Vec<O>>
+    
+    async fn get<O>(&self, statement: &Statement) -> Result<Vec<O>>
     where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        todo!()
+        return Ok(
+            sqlx::query_as::<Self::T, O>(format!("SELECT * FROM `{}`", statement.table).as_str()) // TODO: Impl QueryBuilder
+                .fetch_all(&self.db(&statement.url).await.unwrap())
+                .await
+                .unwrap()
+        )
     }
-
-    async fn get<O>(&self, limit: u64) -> Result<Vec<O>>
+    
+    async fn paginate<O>(&self, _statement: &Statement) -> Result<crate::query::Pagination<O>>
     where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        {
         todo!()
-    }
-
-    fn pagination<O>(&self, limit: u64, page: u64) -> Result<Pagination<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-            todo!()
     }
 }
+

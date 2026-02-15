@@ -1,16 +1,9 @@
-
-
-use std::{any::Any, mem, ops::DerefMut};
-
-use anyhow::Result;
 use serde::Serialize;
-use sqlx::{Database, FromRow, Row, Sqlite, Transaction as SqlxTransaction, any::AnyRow};
-
-use crate::{CONNECTIONS, Executor, mysql::MySQL, postgres::Postgres, sqlite::SQLite};
+use sqlx::Transaction as SqlxTransaction;
 
 #[derive(Clone, Debug)]
 pub struct Statement {
-    pub(crate) connection: String,
+    pub(crate) url: String,
     pub(crate) table: String,
     pub(crate) select: Vec<String>,
     pub(crate) where_clause: Vec<String>,
@@ -21,11 +14,9 @@ pub struct Statement {
 }
 
 impl Statement {
-    // pub(crate) fn new(connection: &str) -> Self {
-    pub(crate) fn new(connection: &str) -> Self {
+    pub(crate) fn new(url: &str) -> Self {
         return Self {
-            // connection: connection.to_owned(),
-            connection: String::new(),
+            url: url.to_owned(),
             table: String::new(),
             select: Vec::new(),
             where_clause: Vec::new(),
@@ -57,9 +48,14 @@ pub struct Pagination<Entity> {
     pub items: Vec<Entity>
 }
 
-
 #[derive(Clone, Debug)]
 pub enum Order {
     ASC,
     DESC
 }
+
+#[derive(Debug, sqlx::FromRow)]
+pub(crate) struct Total {
+    pub total: u64
+}
+    

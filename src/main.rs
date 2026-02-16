@@ -30,7 +30,7 @@ impl Database {
         }
     }
 
-    pub fn db<'q>() -> Query<'q, Database::T> {
+    pub fn query<'q>() -> Query<'q, Database::T> {
         return DB::query_url::< Database::T>(Self::url());
     }
 }
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     DB::init();
     DB::add("sqlite", "./database.sqlite");
 
-    let users = Database::db()
+    let users = Database::query()
         .table("users")
         .select(vec!["*"])
         .r#where("email", "=", "thembangubeni04@gmail.com")
@@ -48,7 +48,17 @@ async fn main() -> Result<()> {
         .await
         .unwrap();
 
-    println!("{:?}", users);
+    println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+
+    let users = Database::query()
+        .table("users")
+        .select(vec!["*"])
+        .r#where("email", "=", "thembangubeni04@gmail.com")
+        .paginate::<User>(10, 1)
+        .await
+        .unwrap();
+
+    println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
         
     Ok(())
 }

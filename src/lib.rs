@@ -9,7 +9,7 @@ use anyhow::{Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, any::install_default_drivers};
 use sqlx::types::Type;
 
-use crate::query::{Order, OrderQuery, Pagination, Statement, WhereQuery};
+use crate::query::{JoinQuery, Order, OrderQuery, Pagination, Statement, WhereQuery};
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
@@ -19,11 +19,15 @@ pub trait Executor: Default {
 
     async fn db(&self, url: &str) -> Result<Pool<Self::T>>; 
 
-    async fn get<'q, O>(&self, statement: &Statement<'q, Self::T>) -> Result<Vec<O>>
+    async fn first<'q, O>(&self, statement: &mut Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn paginate<'q, O>(&self, statement: &Statement<'q, Self::T>) -> Result<Pagination<O>>
+    async fn get<'q, O>(&self, statement: &mut Statement<'q, Self::T>) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+
+    async fn paginate<'q, O>(&self, statement: &mut Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 }
@@ -79,7 +83,7 @@ where
         }
     }
 
-    pub fn table(&mut self, name: &str) -> &mut Self {
+    pub fn table(&mut self, name: &'q str) -> &mut Self {
         self.statement.table = name.to_string();
 
         return self;
@@ -137,6 +141,17 @@ where
         return self;
     }
 
+    pub fn join(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        self.statement.join.push(JoinQuery {
+            table: table.to_string(),
+            column: column.to_string(),
+            operator: operator.to_string(),
+            column_table: column_table.to_string(),
+        });
+
+        return self;
+    }
+
     pub fn limit(&mut self, limit: u64) -> &mut Self {
         self.statement.limit = Some(limit);
 
@@ -149,17 +164,17 @@ where
     {
         self.statement.limit = Some(limit);
 
-        return Ok(Exc::default().get(&self.statement).await.unwrap());
+        return Ok(Exc::default().get(&mut self.statement).await.unwrap());
     }
 
-    async fn _paginate<O>(&mut self, limit: u64, page: u64) -> Result<Pagination<O>>
+    pub async fn paginate<O>(&mut self, limit: u64, page: u64) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         self.statement.limit = Some(limit);
-        self.statement.offset = Some(page); // TODO: calc offset
+        self.statement.page = Some(page); // TODO: calc offset
 
-        return Ok(Exc::default().paginate(&self.statement).await.unwrap());
+        return Ok(Exc::default().paginate(&mut self.statement).await.unwrap());
     }
 }
 

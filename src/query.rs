@@ -1,18 +1,6 @@
 use serde::Serialize;
 use sqlx::Transaction as SqlxTransaction;
 
-#[derive(Clone, Debug)]
-pub struct Statement<'q, DB: sqlx::Database> {
-    pub(crate) url: String,
-    pub(crate) table: String,
-    pub(crate) select: Vec<String>,
-    pub(crate) where_queries: Vec<WhereQuery>,
-    pub(crate) join: Vec<String>,
-    pub(crate) order_by: Vec<OrderQuery>,
-    pub(crate) limit: Option<u64>,
-    pub(crate) offset: Option<u64>,
-    pub(crate) arguments: DB::Arguments<'q>, 
-}
 
 // TODO: add value here maybe...
 #[derive(Clone, Debug)]
@@ -21,7 +9,6 @@ pub(crate) struct WhereQuery {
     pub operator: String,
     pub position: Option<WhereQueryPosition>,
 }
-
 
 #[derive(Clone, Debug)]
 pub(crate) enum WhereQueryPosition {
@@ -33,6 +20,27 @@ pub(crate) enum WhereQueryPosition {
 pub(crate) struct OrderQuery {
     pub column: String,
     pub order: Order
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct JoinQuery {
+    pub table: String,
+    pub column: String,
+    pub operator: String,
+    pub column_table: String, 
+}
+
+#[derive(Clone, Debug)]
+pub struct Statement<'q, DB: sqlx::Database> {
+    pub(crate) url: String,
+    pub(crate) table: String,
+    pub(crate) select: Vec<String>,
+    pub(crate) where_queries: Vec<WhereQuery>,
+    pub(crate) join: Vec<JoinQuery>,
+    pub(crate) order_by: Vec<OrderQuery>,
+    pub(crate) limit: Option<u64>,
+    pub(crate) page: Option<u64>, // TODO: must use `offset` or `page` must decide...
+    pub(crate) arguments: DB::Arguments<'q>, 
 }
 
 impl <'q, DB>Statement<'q, DB>
@@ -48,7 +56,7 @@ where
             join: Vec::new(),
             order_by: Vec::new(),
             limit: None,
-            offset: None,
+            page: None,
             arguments: Default::default(),
         }
     }
@@ -66,7 +74,7 @@ impl <'t, T: sqlx::Database>Transaction<'t, T> {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Debug)]
 pub struct Pagination<Entity> {
     pub total: u64,
     pub page: u64,

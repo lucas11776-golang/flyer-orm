@@ -12,6 +12,21 @@ use crate::query::{Order, Pagination, Statement};
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
+#[allow(async_fn_in_trait)]
+pub trait Executor: Default {
+    type T: sqlx::Database;
+
+    async fn db(&self, url: &str) -> Result<Pool<Self::T>>; 
+
+    async fn get<O>(&self, statement: &Statement) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+
+    async fn paginate<O>(&self, statement: &Statement) -> Result<Pagination<O>>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+}
+
 pub struct DB;
 
 impl DB {
@@ -35,6 +50,14 @@ impl DB {
         Exc: Executor
     {
         return unsafe { Query::new(CONNECTIONS.get(connection).unwrap()) };
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn query_url<Exc>(url: &str) -> Query::<Exc>
+    where
+        Exc: Executor
+    {
+        return Query::new(url);
     }
 }
 
@@ -90,19 +113,4 @@ where
 
         return Ok(Exc::default().paginate(&self.statement).await.unwrap());
     }
-}
-
-#[allow(async_fn_in_trait)]
-pub trait Executor: Default {
-    type T: sqlx::Database;
-
-    async fn db(&self, url: &str) -> Result<Pool<Self::T>>; 
-
-    async fn get<O>(&self, statement: &Statement) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
-    async fn paginate<O>(&self, statement: &Statement) -> Result<Pagination<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 }

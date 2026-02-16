@@ -5,10 +5,11 @@ pub mod query;
 
 use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 
-use anyhow::{Ok, Result};
-use sqlx::{FromRow, Pool, any::install_default_drivers};
+use anyhow::{Result};
+use sqlx::{Arguments, Encode, FromRow, Pool, any::install_default_drivers};
+use sqlx::types::Type;
 
-use crate::query::{Order, Pagination, Statement};
+use crate::query::{Order, OrderQuery, Pagination, Statement, WhereQuery};
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
@@ -18,11 +19,11 @@ pub trait Executor: Default {
 
     async fn db(&self, url: &str) -> Result<Pool<Self::T>>; 
 
-    async fn get<O>(&self, statement: &Statement) -> Result<Vec<O>>
+    async fn get<'q, O>(&self, statement: &Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn paginate<O>(&self, statement: &Statement) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&self, statement: &Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 }
@@ -45,7 +46,7 @@ impl DB {
     }
 
     #[allow(static_mut_refs)]
-    pub fn query<Exc>(connection: &str) -> Query::<Exc>
+    pub fn query<'q, Exc>(connection: &str) -> Query::<'q, Exc>
     where
         Exc: Executor
     {
@@ -53,7 +54,7 @@ impl DB {
     }
 
     #[allow(static_mut_refs)]
-    pub fn query_url<Exc>(url: &str) -> Query::<Exc>
+    pub fn query_url<'q, Exc>(url: &'q str) -> Query::<'q, Exc>
     where
         Exc: Executor
     {
@@ -61,18 +62,19 @@ impl DB {
     }
 }
 
-pub struct Query<Exc> {
-    statement: Statement,
+
+pub struct Query<'q, Exc: Executor> {
+    statement: Statement<'q, Exc::T>,
     _marker: PhantomData<Exc>
 }
 
-impl <Exc>Query<Exc>
+impl <'q, Exc>Query<'q, Exc>
 where
     Exc: Executor
 {
     pub fn new(url: &str) -> Self {
         return Self {
-            statement: Statement::new(url),
+            statement: Statement::<'q, Exc::T>::new(url),
             _marker: PhantomData
         }
     }
@@ -83,15 +85,61 @@ where
         return self;
     }
 
-    pub fn select(&mut self, _columns: Vec<&str>) -> &mut Self {
+    pub fn select(&mut self, columns: Vec<&str>) -> &mut Self {
+        self.statement.select = columns.iter().map(|c| c.to_string()).collect();
+
         return self;
     }
 
-    pub fn order_by(&mut self, _column: &str, _order: Order) -> &mut Self {
+    // TODO: find better name...
+    pub fn r#where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        self.statement.where_queries.push(WhereQuery {
+            column: column.to_string(),
+            operator: operator.to_string(),
+            position: None // TODO: find better way for position...
+        });
+
+        self.statement.arguments.add(val).unwrap();
+        
         return self;
     }
 
-    pub fn limit(&mut self, _limit: u64) -> &mut Self {
+    pub fn and_where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        self.statement.where_queries.push(WhereQuery {
+            column: column.to_string(),
+            operator: operator.to_string(),
+            position: Some(query::WhereQueryPosition::AND) // TODO: find better way for position...
+        });
+
+        self.statement.arguments.add(val).unwrap();
+        
+        return self;
+    }
+
+    pub fn or_where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        self.statement.where_queries.push(WhereQuery {
+            column: column.to_string(),
+            operator: operator.to_string(),
+            position: Some(query::WhereQueryPosition::OR) // TODO: find better way for position...
+        });
+
+        self.statement.arguments.add(val).unwrap();
+
+        return self;
+    }
+
+    pub fn order_by(&mut self, column: &str, order: Order) -> &mut Self {
+        self.statement.order_by.push(OrderQuery {
+            column: column.to_string(),
+            order: order
+        });
+
+        return self;
+    }
+
+    pub fn limit(&mut self, limit: u64) -> &mut Self {
+        self.statement.limit = Some(limit);
+
         return self;
     }
 
@@ -104,7 +152,7 @@ where
         return Ok(Exc::default().get(&self.statement).await.unwrap());
     }
 
-    async fn paginate<O>(&mut self, limit: u64, page: u64) -> Result<Pagination<O>>
+    async fn _paginate<O>(&mut self, limit: u64, page: u64) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
@@ -113,4 +161,10 @@ where
 
         return Ok(Exc::default().paginate(&self.statement).await.unwrap());
     }
+}
+
+
+
+pub(crate) trait QueryBuilder<'q, DB: sqlx::Database> {
+    fn build(statement: &Statement<'q, DB>) -> Result<String>;
 }

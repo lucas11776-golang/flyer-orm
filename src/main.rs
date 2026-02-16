@@ -22,16 +22,16 @@ impl Database {
     pub type T = SQLite;
     // pub type T = MySQL;
 
-    pub fn url() -> String {
+    pub fn url<'q>() -> &'q str {
         return match env::var("ENVIRONMENT").unwrap_or("testing".to_string()).as_str() {
-            "production"  => env::var("DATABASE_URL").unwrap(),
-            "development" => "./database.sqlite".to_string(),
-            _             => "./database.sqlite".to_string(), // ":memory:".to_string(),
+            // "production"  => env::var("DATABASE_URL").unwrap().as_str(), // TODO: fix temp variable...
+            "development" => "./database.sqlite",
+            _             => "./database.sqlite", // ":memory:".to_string(),
         }
     }
 
-    pub fn db() -> Query<Database::T> {
-        return DB::query_url::<Database::T>(&Database::url())
+    pub fn db<'q>() -> Query<'q, Database::T> {
+        return DB::query_url::< Database::T>(Self::url());
     }
 }
 
@@ -43,6 +43,7 @@ async fn main() -> Result<()> {
     let users = Database::db()
         .table("users")
         .select(vec!["*"])
+        .r#where("email", "=", "thembangubeni04@gmail.com")
         .get::<User>(10)
         .await
         .unwrap();

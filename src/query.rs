@@ -2,28 +2,54 @@ use serde::Serialize;
 use sqlx::Transaction as SqlxTransaction;
 
 #[derive(Clone, Debug)]
-pub struct Statement {
+pub struct Statement<'q, DB: sqlx::Database> {
     pub(crate) url: String,
     pub(crate) table: String,
     pub(crate) select: Vec<String>,
-    pub(crate) where_clause: Vec<String>,
+    pub(crate) where_queries: Vec<WhereQuery>,
     pub(crate) join: Vec<String>,
-    pub(crate) order_by: Option<(String, Order)>,
+    pub(crate) order_by: Vec<OrderQuery>,
     pub(crate) limit: Option<u64>,
     pub(crate) offset: Option<u64>,
+    pub(crate) arguments: DB::Arguments<'q>, 
 }
 
-impl Statement {
+// TODO: add value here maybe...
+#[derive(Clone, Debug)]
+pub(crate) struct WhereQuery {
+    pub column: String,
+    pub operator: String,
+    pub position: Option<WhereQueryPosition>,
+}
+
+
+#[derive(Clone, Debug)]
+pub(crate) enum WhereQueryPosition {
+    AND,
+    OR
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct OrderQuery {
+    pub column: String,
+    pub order: Order
+}
+
+impl <'q, DB>Statement<'q, DB>
+where
+    DB: sqlx::Database
+{
     pub(crate) fn new(url: &str) -> Self {
         return Self {
             url: url.to_owned(),
             table: String::new(),
             select: Vec::new(),
-            where_clause: Vec::new(),
+            where_queries: Vec::new(),
             join: Vec::new(),
-            order_by: None,
+            order_by: Vec::new(),
             limit: None,
             offset: None,
+            arguments: Default::default(),
         }
     }
 }

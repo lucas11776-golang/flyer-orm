@@ -4,7 +4,7 @@
 use std::env;
 
 use anyhow::Result;
-use flyer_orm::{DB, Query, sqlite::SQLite};
+use flyer_orm::{DB, Database, Query, sqlite::SQLite};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -18,9 +18,23 @@ pub struct User {
 }
 
 
-pub struct Database;
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Project {
+    pub uuid: String,
+    pub organization_uuid: String,
+    pub user_uuid: String,
+    pub container_id: String,
+    pub created_at: String,
+    pub ip_address: String,
+    pub name: String,
+    pub framework: String,
+    pub model: String,
+    pub description: String,
+}
 
-impl Database {
+pub struct Connection;
+
+impl Connection {
     pub type T = SQLite;
 
     pub fn url<'q>() -> &'q str {
@@ -31,51 +45,29 @@ impl Database {
         }
     }
 
-    pub fn query<'q>() -> Query<'q, Database::T> {
-        return DB::query_url::< Database::T>(Self::url());
+    pub async fn db() -> Database<Connection::T> {
+        return Database::new(Self::url()).await;
     }
+
+    // pub async fn query<'q>() -> Query<'q, Connection::T> {
+    //     return DB::query_url::< Database::T>(Self::url()).await;
+    // }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     DB::add("sqlite", "./database.sqlite");
 
-    // let users = Database::query()
+    // let projects = Database::query()
+    //     .await
     //     .table("users")
-    //     .select(vec!["*"])
-    //     .r#where("email", "=", "thembangubeni04@gmail.com")
-    //     .get::<User>(10)
+    //     .select(vec!["projects.*"])
+    //     .join("projects", "users.uuid", "projects.user_uuid")
+    //     .all::<Project>()
     //     .await
     //     .unwrap();
 
-
-    // let sql = Database::query()
-    //     .table("users")
-    //     .select(vec!["*"])
-    //     .r#where("email", "=", "thembangubeni04@gmail.com")
-    //     .limit(10)
-    //     .to_sql()
-    //     .unwrap();
-
-    let sql = Database::query()
-        .table("users")
-        .query_one::<User, _>("SELECT * FROM `users` WHERE email = ?", vec!["thembangubeni04@gmail.com"])
-        .await
-        .unwrap();
-
-    println!("\r\n\r\n ------------ SQL USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", sql);
-
-    // println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
-
-    // let users = Database::query()
-    //     .table("users")
-    //     .select(vec!["*"])
-    //     .r#where("email", "=", "thembangubeni04@gmail.com")
-    //     .paginate::<User>(10, 1)
-    //     .await
-    //     .unwrap();
-
-    // println!("\r\n\r\n ------------ PAGINATE USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+    // println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", projects);
         
     Ok(())
 }

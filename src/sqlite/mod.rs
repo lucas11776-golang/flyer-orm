@@ -2,17 +2,24 @@ mod builder;
 
 
 use anyhow::Result;
-use sqlx::{Arguments, Pool};
+use sqlx::{Arguments, Pool, Sqlite};
 
 use crate::{Executor, QueryBuilder, query::{Pagination, Statement, Total}, sqlite::builder::Builder};
 
-#[derive(Default)]
 pub struct SQLite {
+    db: Pool<Sqlite>,
     builder: Builder,
 }
 
 impl Executor for SQLite {
     type T = sqlx::Sqlite;
+
+    async fn new(url: &str) -> Self where Self: Sized {
+        return Self {
+            db: sqlx::SqlitePool::connect(url).await.unwrap(),
+            builder: Builder::default(),
+        }
+    }
     
     async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>> {
         return Ok(sqlx::SqlitePool::connect(url).await.unwrap());
@@ -34,7 +41,7 @@ impl Executor for SQLite {
 
         return Ok(
             sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
-                .fetch_all(&self.db(&statement.url).await.unwrap())
+                .fetch_all(&self.db)
                 .await
                 .unwrap()
         )
@@ -52,7 +59,7 @@ impl Executor for SQLite {
 
         return Ok(
             sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
-                .fetch_one(&self.db(&statement.url).await.unwrap())
+                .fetch_one(&self.db)
                 .await
                 .unwrap()
         )
@@ -64,7 +71,7 @@ impl Executor for SQLite {
     {
         return Ok(
             sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                .fetch_one(&self.db(&statement.url).await.unwrap())
+                .fetch_one(&self.db)
                 .await
                 .unwrap()
         );
@@ -76,7 +83,7 @@ impl Executor for SQLite {
     {
         return Ok(
             sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                .fetch_all(&self.db(&statement.url).await.unwrap())
+                .fetch_all(&self.db)
                 .await
                 .unwrap(),
         );
@@ -92,17 +99,15 @@ impl Executor for SQLite {
         query.select = vec!["COUNT(*) as total".to_string()];
         query.limit = None;
         query.page = None;
-
-        let db = self.db(&statement.url).await.unwrap();
         
 
         let total = sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-            .fetch_one(&db)
+            .fetch_one(&self.db)
             .await
             .unwrap();
 
         let items = sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-            .fetch_all(&self.db(&statement.url).await.unwrap())
+            .fetch_all(&self.db)
             .await
             .unwrap();
 

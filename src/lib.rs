@@ -8,13 +8,15 @@ use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 use anyhow::{Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
-use crate::query::{JoinQuery, Order, OrderQuery, Pagination, QueryStatement, Statement, WhereQuery};
+use crate::query::{JoinQuery, JoinType, Order, OrderQuery, Pagination, QueryStatement, Statement, WhereQuery};
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
 #[allow(async_fn_in_trait)]
-pub trait Executor: Default {
+pub trait Executor {
     type T: sqlx::Database;
+
+    async fn new(url: &str) -> Self where Self: Sized;
 
     async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>>; 
 
@@ -54,25 +56,38 @@ impl DB {
         unsafe { CONNECTIONS.remove(connection); }
     }
 
-    #[allow(static_mut_refs)]
-    pub fn query<'q, Exc>(connection: &str) -> Query::<'q, Exc>
-    where
-        Exc: Executor
-    {
-        return unsafe { Query::new(CONNECTIONS.get(connection).unwrap()) };
-    }
+    // #[allow(static_mut_refs)]
+    // pub async fn query<'q, Exc>(connection: &str) -> Query::<'q, Exc>
+    // where
+    //     Exc: Executor
+    // {
+    //     return unsafe { Query::new(CONNECTIONS.get(connection).unwrap()).await };
+    // }
 
-    #[allow(static_mut_refs)]
-    pub fn query_url<'q, Exc>(url: &'q str) -> Query::<'q, Exc>
-    where
-        Exc: Executor
-    {
-        return Query::new(url);
-    }
+    // #[allow(static_mut_refs)]
+    // pub async fn query_url<'q, Exc>(url: &'q str) -> Query::<'q, Exc>
+    // where
+    //     Exc: Executor
+    // {
+    //     return Query::new(url).await;
+    // }
 }
 
 
+pub struct Database<Exc: Executor> {
+    database: Exc,
+}
+
+impl <Exc: Executor>Database<Exc> {
+    pub async fn new(url: &str) -> Self {
+        return Self {
+            database: Exc::new(url).await,
+        }
+    }
+}
+
 pub struct Query<'q, Exc: Executor> {
+    db: &'q Exc,
     statement: Statement<'q, Exc::T>,
     _marker: PhantomData<Exc>
 }
@@ -81,10 +96,11 @@ impl <'q, Exc>Query<'q, Exc>
 where
     Exc: Executor
 {
-    pub fn new(url: &str) -> Self {
+    pub async fn new(exc: &'q Exc) -> Self {
         return Self {
-            statement: Statement::<'q, Exc::T>::new(url),
-            _marker: PhantomData
+            db: exc,
+            statement: Statement::<'q, Exc::T>::new(),
+            _marker: PhantomData,
         }
     }
 
@@ -117,7 +133,7 @@ where
         self.statement.query.where_queries.push(WhereQuery {
             column: column.to_string(),
             operator: operator.to_string(),
-            position: Some(query::WhereQueryPosition::AND) // TODO: find better way for position...
+            position: Some(query::QueryPosition::AND) // TODO: find better way for position...
         });
 
         self.statement.arguments.add(val).unwrap();
@@ -129,7 +145,7 @@ where
         self.statement.query.where_queries.push(WhereQuery {
             column: column.to_string(),
             operator: operator.to_string(),
-            position: Some(query::WhereQueryPosition::OR) // TODO: find better way for position...
+            position: Some(query::QueryPosition::OR) // TODO: find better way for position...
         });
 
         self.statement.arguments.add(val).unwrap();
@@ -146,12 +162,13 @@ where
         return self;
     }
 
-    pub fn join(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+    pub fn join(&mut self, table: &str, column: &str, column_table: &str) -> &mut Self {
         self.statement.query.join.push(JoinQuery {
             table: table.to_string(),
             column: column.to_string(),
-            operator: operator.to_string(),
+            operator: "=".to_string(), // TODO: find better way for operator...
             column_table: column_table.to_string(),
+            join_type: JoinType::LeftJoin 
         });
 
         return self;
@@ -167,21 +184,26 @@ where
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(Exc::default().query_all::<O, T>(&self.statement, sql, args).await.unwrap());
+        // return Ok(Exc::default().query_all::<O, T>(&self.statement, sql, args).await.unwrap());
+        todo!()
     }
 
     pub async fn query_one<O, T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(Exc::default().query_one::<O, T>(&self.statement, sql, args).await.unwrap());
+        // return Ok(Exc::default().query_one::<O, T>(&self.statement, sql, args).await.unwrap());
+
+        todo!()
     }
 
     pub async fn all<O>(&'q mut self) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(Exc::default().all::<O>(&self.statement).await.unwrap());
+        // return Ok(Exc::default().all::<O>(&self.statement).await.unwrap());
+
+        todo!()
     }
 
     pub async fn paginate<O>(&'q mut self, limit: u64, page: u64) -> Result<Pagination<O>>
@@ -191,11 +213,15 @@ where
         self.statement.query.limit = Some(limit);
         self.statement.query.page = Some(page); // TODO: calc offset using offset
 
-        return Ok(Exc::default().paginate::<O>(&self.statement).await.unwrap());
+        // return Ok(Exc::default().paginate::<O>(&self.statement).await.unwrap());
+
+        todo!()
     }
 
     pub fn to_sql(&'q mut self) -> Result<String> {
-        return Ok(Exc::default().to_sql(&self.statement).unwrap());
+        // return Ok(Exc::default().to_sql(&self.statement).unwrap());
+
+        todo!()
     }
 }
 

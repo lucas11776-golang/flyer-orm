@@ -6,6 +6,7 @@ use sqlx::{Arguments, Pool, Sqlite};
 
 use crate::{Executor, QueryBuilder, query::{Pagination, Statement, Total}, sqlite::builder::Builder};
 
+#[derive(Debug)]
 pub struct SQLite {
     db: Pool<Sqlite>,
     builder: Builder,
@@ -21,15 +22,17 @@ impl Executor for SQLite {
         }
     }
     
-    async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>> {
-        return Ok(sqlx::SqlitePool::connect(url).await.unwrap());
+    fn db<'q>(&'q self) -> &'q Pool<Self::T> {
+        return &self.db;
     }
     
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        return Ok(self.builder.build(&statement.query).unwrap());
+        // return Ok(self.builder.build(&statement.query).unwrap());
+
+        todo!()
     }
     
-    async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<Vec<O>>
+    async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
@@ -47,7 +50,7 @@ impl Executor for SQLite {
         )
     }
     
-    async fn query_one<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<O>
+    async fn query_one<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {

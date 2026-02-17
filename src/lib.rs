@@ -5,10 +5,10 @@ pub mod query;
 
 use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 
-use anyhow::{Result};
+use anyhow::{Ok, Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
-use crate::query::{JoinQuery, JoinType, Order, OrderQuery, Pagination, QueryStatement, Statement, WhereQuery};
+use crate::query::{JoinQuery, JoinType, Order, OrderQuery, Pagination, QueryStatement, Statement, Transaction, WhereQuery, WhereQueryGroup};
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
@@ -18,15 +18,15 @@ pub trait Executor {
 
     async fn new(url: &str) -> Self where Self: Sized;
 
-    async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>>; 
+    fn db<'q>(&'q self) -> &'q Pool<Self::T>; 
 
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
 
-    async fn query_all<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<Vec<O>>
+    async fn query_all<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn query_one<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<O>
+    async fn query_one<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
@@ -56,50 +56,53 @@ impl DB {
         unsafe { CONNECTIONS.remove(connection); }
     }
 
-    // #[allow(static_mut_refs)]
-    // pub async fn query<'q, Exc>(connection: &str) -> Query::<'q, Exc>
-    // where
-    //     Exc: Executor
-    // {
-    //     return unsafe { Query::new(CONNECTIONS.get(connection).unwrap()).await };
-    // }
 
-    // #[allow(static_mut_refs)]
-    // pub async fn query_url<'q, Exc>(url: &'q str) -> Query::<'q, Exc>
-    // where
-    //     Exc: Executor
-    // {
-    //     return Query::new(url).await;
-    // }
-}
-
-
-pub struct Database<Exc: Executor> {
-    database: Exc,
-}
-
-impl <Exc: Executor>Database<Exc> {
-    pub async fn new(url: &str) -> Self {
-        return Self {
-            database: Exc::new(url).await,
-        }
+    #[allow(static_mut_refs)]
+    pub async fn db<E: Executor>(connection: &str) -> Database::<E>
+    {
+        return unsafe { Database::new(CONNECTIONS.get(connection).unwrap()).await };
     }
 }
 
-pub struct Query<'q, Exc: Executor> {
-    db: &'q Exc,
-    statement: Statement<'q, Exc::T>,
-    _marker: PhantomData<Exc>
+#[derive(Debug)]
+pub struct Database<E: Executor> {
+    executor: E,
 }
 
-impl <'q, Exc>Query<'q, Exc>
+impl <E: Executor>Database<E> {
+    pub async fn new(url: &str) -> Self {
+        return Self {
+            executor: E::new(url).await,
+        }
+    }
+
+    pub async fn transaction<'q>(&self) -> Result<Transaction<'q, E::T>> {
+        return Ok(Transaction::new(self.executor.db().begin().await.unwrap()));
+    }
+
+    pub fn query<'q>(&'q self, table: &str) -> Query<'q, E> {
+        return Query::new(table, &self.executor);
+    }
+
+    pub async fn close(&self) -> Result<()> {
+        return Ok(self.executor.db().close().await);
+    }
+}
+
+pub struct Query<'q, E: Executor> {
+    db: &'q E,
+    statement: Statement<'q, E::T>,
+    _marker: PhantomData<E>
+}
+
+impl <'q, E>Query<'q, E>
 where
-    Exc: Executor
+    E: Executor
 {
-    pub async fn new(exc: &'q Exc) -> Self {
+    pub fn new(table: &str, exc: &'q E) -> Self {
         return Self {
             db: exc,
-            statement: Statement::<'q, Exc::T>::new(),
+            statement: Statement::<'q, E::T>::new(table),
             _marker: PhantomData,
         }
     }
@@ -116,12 +119,17 @@ where
         return self;
     }
 
-    // TODO: find better name...
-    pub fn r#where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+    pub fn r#where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        if self.statement.query.where_queries.len() != 0 {
+            return self.and_where(column, operator, val);
+        }
+
+        // TODO: find better name...
         self.statement.query.where_queries.push(WhereQuery {
-            column: column.to_string(),
-            operator: operator.to_string(),
-            position: None // TODO: find better way for position...
+            column: Some(column.to_string()),
+            operator: Some(operator.to_string()),
+            position: None,
+            group: None
         });
 
         self.statement.arguments.add(val).unwrap();
@@ -129,11 +137,16 @@ where
         return self;
     }
 
-    pub fn and_where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+    pub fn and_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        if self.statement.query.where_queries.len() == 0 {
+            return self.r#where(column, operator, val);
+        }
+
         self.statement.query.where_queries.push(WhereQuery {
-            column: column.to_string(),
-            operator: operator.to_string(),
-            position: Some(query::QueryPosition::AND) // TODO: find better way for position...
+            column: Some(column.to_string()),
+            operator: Some(operator.to_string()),
+            position: Some(query::QueryPosition::AND),
+            group: None
         });
 
         self.statement.arguments.add(val).unwrap();
@@ -141,15 +154,33 @@ where
         return self;
     }
 
-    pub fn or_where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+    pub fn or_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        if self.statement.query.where_queries.len() == 0 {
+            return self.r#where(column, operator, val);
+        }
+
         self.statement.query.where_queries.push(WhereQuery {
-            column: column.to_string(),
-            operator: operator.to_string(),
-            position: Some(query::QueryPosition::OR) // TODO: find better way for position...
+            column: Some(column.to_string()),
+            operator: Some(operator.to_string()),
+            position: Some(query::QueryPosition::OR),
+            group: None
         });
 
         self.statement.arguments.add(val).unwrap();
 
+        return self;
+    }
+
+    pub fn where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
+        return self;
+    }
+
+
+    pub fn and_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
+        return self;
+    }
+
+    pub fn or_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
         return self;
     }
 
@@ -166,7 +197,7 @@ where
         self.statement.query.join.push(JoinQuery {
             table: table.to_string(),
             column: column.to_string(),
-            operator: "=".to_string(), // TODO: find better way for operator...
+            operator: "=".to_string(),
             column_table: column_table.to_string(),
             join_type: JoinType::LeftJoin 
         });
@@ -180,48 +211,39 @@ where
         return self;
     }
 
-    pub async fn query_all<O, T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
+    pub async fn query_all<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
-        O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        // return Ok(Exc::default().query_all::<O, T>(&self.statement, sql, args).await.unwrap());
-        todo!()
+        return Ok(self.db.query_all::<O, T>(sql, args).await.unwrap());
     }
 
-    pub async fn query_one<O, T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<O>
+    pub async fn query_one<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<O>
     where
-        O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        // return Ok(Exc::default().query_one::<O, T>(&self.statement, sql, args).await.unwrap());
-
-        todo!()
+        return Ok(self.db.query_one::<O, T>(sql, args).await.unwrap())
     }
 
     pub async fn all<O>(&'q mut self) -> Result<Vec<O>>
     where
-        O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        // return Ok(Exc::default().all::<O>(&self.statement).await.unwrap());
-
-        todo!()
+        return Ok(self.db.all::<O>(&self.statement).await.unwrap())
     }
 
     pub async fn paginate<O>(&'q mut self, limit: u64, page: u64) -> Result<Pagination<O>>
     where
-        O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         self.statement.query.limit = Some(limit);
         self.statement.query.page = Some(page); // TODO: calc offset using offset
 
-        // return Ok(Exc::default().paginate::<O>(&self.statement).await.unwrap());
-
-        todo!()
+        return Ok(self.db.paginate::<O>(&self.statement).await.unwrap());
     }
 
     pub fn to_sql(&'q mut self) -> Result<String> {
-        // return Ok(Exc::default().to_sql(&self.statement).unwrap());
-
-        todo!()
+        return Ok(self.db.to_sql(&self.statement).unwrap())
     }
 }
 

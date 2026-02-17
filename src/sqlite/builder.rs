@@ -3,7 +3,7 @@ use anyhow::{Ok, Result};
 use crate::QueryBuilder;
 use crate::query::QueryStatement;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct Builder;
 
 impl QueryBuilder for Builder {
@@ -64,9 +64,23 @@ impl Builder {
         let mut conditions: Vec<String> = Vec::new();
 
         for where_query in &statement.where_queries {
-            match where_query.operator.as_str() {
-                _ => conditions.push(format!("{} {} ?", where_query.column, where_query.operator)),
+
+
+
+            match &where_query.group {
+                Some(group) => {
+
+                },
+                None => {
+                    match where_query.operator.clone().unwrap().as_str().to_lowercase().as_str() {
+                        "like" => conditions.push(format!("{} LIKE '%' || ? || '%'", where_query.column.clone().unwrap())),
+                        _ => conditions.push(format!("{} {} ?", where_query.column.clone().unwrap(), where_query.operator.clone().unwrap())),
+                    }
+                },
             }
+
+
+            
         }
 
         return conditions.join(" ");

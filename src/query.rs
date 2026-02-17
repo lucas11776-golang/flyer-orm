@@ -1,20 +1,58 @@
+use std::marker::PhantomData;
+
 use anyhow::Result;
 use serde::Serialize;
-use sqlx::Transaction as SqlxTransaction;
+use sqlx::{Encode, Transaction as SqlxTransaction, types::Type};
 
+use crate::Executor;
 
-// TODO: add value here maybe...
 #[derive(Clone, Debug)]
 pub struct WhereQuery {
-    pub column: String,
-    pub operator: String,
+    pub column: Option<String>,
+    pub operator: Option<String>,
     pub position: Option<QueryPosition>,
+    pub group: Option<Box<WhereQuery>>
 }
+
+
+
+#[derive(Debug)]
+pub struct WhereQueryGroup<'q, DB: sqlx::Database> {
+    pub queries: Vec<WhereQuery>,
+    _marker: PhantomData<DB>,
+    _life: PhantomData<&'q ()>
+}
+
+
+impl <'q, DB>WhereQueryGroup<'q, DB>
+where
+    DB: sqlx::Database
+{
+
+    pub fn new() -> Self {
+        return Self {
+            queries: Vec::new(),
+            _marker: PhantomData,
+            _life: PhantomData
+        }
+    }
+
+    pub fn r#where<T: 'q + Encode<'q, DB> + Type<DB>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
+        todo!()
+    }
+}
+
 
 #[derive(Clone, Debug)]
 pub enum QueryPosition {
     AND,
     OR
+}
+
+#[derive(Clone, Debug)]
+pub enum Order {
+    ASC,
+    DESC
 }
 
 #[derive(Clone, Debug)]
@@ -71,9 +109,9 @@ pub struct QueryStatement {
 }
 
 impl QueryStatement {
-    pub fn new() -> Self {
+    pub fn new(table: &str) -> Self {
         return Self {
-            table: String::new(),
+            table: table.to_string(),
             select: Vec::new(),
             join: Vec::new(),
             where_queries: Vec::new(),
@@ -86,20 +124,23 @@ impl QueryStatement {
     }
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub(crate) struct Total {
+    pub total: u64
+}
+
 impl <'q, DB>Statement<'q, DB>
 where
     DB: sqlx::Database
 {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(table: &str) -> Self {
         return Self {
-            // url: url.to_owned(),
-            query: QueryStatement::new(),
+            query: QueryStatement::new(table),
             arguments: Default::default(),
         }
     }
 }
 
-// TODO: fix connection must be some connection. -> query()
 #[derive(Debug)]
 pub struct Transaction<'t, T: sqlx::Database> {
     transaction: SqlxTransaction<'t, T>
@@ -121,7 +162,6 @@ impl <'t, T: sqlx::Database>Transaction<'t, T> {
     }
 }
 
-
 #[derive(Serialize, Clone, Debug)]
 pub struct Pagination<Entity> {
     pub total: u64,
@@ -129,15 +169,3 @@ pub struct Pagination<Entity> {
     pub per_page: u64,
     pub items: Vec<Entity>
 }
-
-#[derive(Clone, Debug)]
-pub enum Order {
-    ASC,
-    DESC
-}
-
-#[derive(Debug, sqlx::FromRow)]
-pub(crate) struct Total {
-    pub total: u64
-}
-    

@@ -1,11 +1,14 @@
 #![feature(inherent_associated_types)]
+#![feature(associated_type_defaults)]
 #[allow(incomplete_features)]
+
 
 use std::env;
 
 use anyhow::Result;
-use flyer_orm::{DB, Database, Query, sqlite::SQLite};
-use serde::Serialize;
+use flyer_orm::{DB, Database, Executor, Query, mysql::MySQL, sqlite::SQLite};
+use serde::{Serialize, de};
+// use sqlx::Database;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
@@ -37,37 +40,35 @@ pub struct Connection;
 impl Connection {
     pub type T = SQLite;
 
-    pub fn url<'q>() -> &'q str {
+    pub fn url<'q>() -> String {
         return match env::var("ENVIRONMENT").unwrap_or("testing".to_string()).as_str() {
-            // "production"  => env::var("DATABASE_URL").unwrap().as_str(), // TODO: fix temp variable...
-            "development" => "./database.sqlite",
-            _             => "./database.sqlite", // ":memory:".to_string(),
+            "production"  => env::var("DATABASE_URL").unwrap(), // TODO: fix temp variable...
+            "development" => "./database.sqlite".to_string(),
+            _             => "./database.sqlite".to_string(), // ":memory:".to_string(),
         }
     }
 
     pub async fn db() -> Database<Connection::T> {
-        return Database::new(Self::url()).await;
+        return Database::new(&Self::url()).await;
     }
-
-    // pub async fn query<'q>() -> Query<'q, Connection::T> {
-    //     return DB::query_url::< Database::T>(Self::url()).await;
-    // }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    DB::add("sqlite", "./database.sqlite");
+    let db: Database<Connection::T> = Connection::db().await;
+    let transaction = db.transaction().await.unwrap();
 
-    // let projects = Database::query()
-    //     .await
-    //     .table("users")
-    //     .select(vec!["projects.*"])
-    //     .join("projects", "users.uuid", "projects.user_uuid")
-    //     .all::<Project>()
-    //     .await
-    //     .unwrap();
+    let users = db.query("users")
+        .where_group(|group| {
+            return group;
+        })
+        .all::<User>()
+        .await
+        .unwrap();
 
-    // println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", projects);
+    println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+
+    transaction.commit().await.unwrap();
         
     Ok(())
 }

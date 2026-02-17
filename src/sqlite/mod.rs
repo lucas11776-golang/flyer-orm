@@ -2,12 +2,14 @@ mod builder;
 
 
 use anyhow::Result;
-use sqlx::Pool;
+use sqlx::{Arguments, Pool};
 
 use crate::{Executor, QueryBuilder, query::{Pagination, Statement, Total}, sqlite::builder::Builder};
 
 #[derive(Default)]
-pub struct SQLite;
+pub struct SQLite {
+    builder: Builder,
+}
 
 impl Executor for SQLite {
     type T = sqlx::Sqlite;
@@ -16,8 +18,44 @@ impl Executor for SQLite {
         return Ok(sqlx::SqlitePool::connect(url).await.unwrap());
     }
     
-    fn to_sql<'q>(&'q self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        return Ok(Builder::build(&statement.query).unwrap());
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
+        return Ok(self.builder.build(&statement.query).unwrap());
+    }
+    
+    async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
+
+        for arg in args {
+            arguments.add(arg).unwrap();
+        }
+
+        return Ok(
+            sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
+                .fetch_all(&self.db(&statement.url).await.unwrap())
+                .await
+                .unwrap()
+        )
+    }
+    
+    async fn query_one<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<O>
+    where
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
+
+        for arg in args {
+            arguments.add(arg).unwrap();
+        }
+
+        return Ok(
+            sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
+                .fetch_one(&self.db(&statement.url).await.unwrap())
+                .await
+                .unwrap()
+        )
     }
     
     async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
@@ -25,25 +63,26 @@ impl Executor for SQLite {
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return Ok(
-            sqlx::query_as::<Self::T, O>(&Builder::build(&statement.query).unwrap())
+            sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
                 .fetch_one(&self.db(&statement.url).await.unwrap())
                 .await
                 .unwrap()
         );
     }
     
-    async fn get<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
+    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return Ok(
-            sqlx::query_as::<Self::T, O>(&Builder::build(&statement.query).unwrap())
+            sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
                 .fetch_all(&self.db(&statement.url).await.unwrap())
                 .await
                 .unwrap(),
         );
     }
     
+    // TODO: refactor...
     async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
@@ -55,13 +94,14 @@ impl Executor for SQLite {
         query.page = None;
 
         let db = self.db(&statement.url).await.unwrap();
+        
 
-        let total = sqlx::query_as::<Self::T, Total>(&Builder::build(&query).unwrap())
+        let total = sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
             .fetch_one(&db)
             .await
             .unwrap();
 
-        let items = sqlx::query_as::<Self::T, O>(&Builder::build(&statement.query).unwrap())
+        let items = sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
             .fetch_all(&self.db(&statement.url).await.unwrap())
             .await
             .unwrap();
@@ -76,4 +116,3 @@ impl Executor for SQLite {
         );
     }
 }
-

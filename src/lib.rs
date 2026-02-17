@@ -6,8 +6,7 @@ pub mod query;
 use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 
 use anyhow::{Result};
-use sqlx::{Arguments, Encode, FromRow, Pool, any::install_default_drivers};
-use sqlx::types::Type;
+use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
 use crate::query::{JoinQuery, Order, OrderQuery, Pagination, QueryStatement, Statement, WhereQuery};
 
@@ -19,13 +18,21 @@ pub trait Executor: Default {
 
     async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>>; 
 
-    fn to_sql<'q>(&'q self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
 
-    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    async fn query_all<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn get<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
+    async fn query_one<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, statement: &'q Statement<'q, Self::T>, sql: &str, args: Vec<T>) -> Result<O>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+
+    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+
+    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
@@ -37,10 +44,6 @@ pub trait Executor: Default {
 pub struct DB;
 
 impl DB {
-    pub fn init() {
-        install_default_drivers();
-    }
-
     #[allow(static_mut_refs)]
     pub fn add(connection: &'static str, url: &str) {
         unsafe { CONNECTIONS.insert(connection, url.to_string()); }
@@ -160,13 +163,25 @@ where
         return self;
     }
 
-    pub async fn get<O>(&'q mut self, limit: u64) -> Result<Vec<O>>
+    pub async fn query_all<O, T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        self.statement.query.limit = Some(limit);
+        return Ok(Exc::default().query_all::<O, T>(&self.statement, sql, args).await.unwrap());
+    }
 
-        return Ok(Exc::default().get::<O>(&self.statement).await.unwrap());
+    pub async fn query_one<O, T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<O>
+    where
+        O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(Exc::default().query_one::<O, T>(&self.statement, sql, args).await.unwrap());
+    }
+
+    pub async fn all<O>(&'q mut self) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(Exc::default().all::<O>(&self.statement).await.unwrap());
     }
 
     pub async fn paginate<O>(&'q mut self, limit: u64, page: u64) -> Result<Pagination<O>>
@@ -174,13 +189,17 @@ where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         self.statement.query.limit = Some(limit);
-        self.statement.query.page = Some(page); // TODO: calc offset
+        self.statement.query.page = Some(page); // TODO: calc offset using offset
 
         return Ok(Exc::default().paginate::<O>(&self.statement).await.unwrap());
+    }
+
+    pub fn to_sql(&'q mut self) -> Result<String> {
+        return Ok(Exc::default().to_sql(&self.statement).unwrap());
     }
 }
 
 
 pub(crate) trait QueryBuilder {
-    fn build<'q>(statement: &'q QueryStatement) -> Result<String>;
+    fn build(&self, statement: &QueryStatement) -> Result<String>;
 }

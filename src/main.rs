@@ -1,8 +1,10 @@
 #![feature(inherent_associated_types)]
-use std::{env, marker::PhantomData};
+#[allow(incomplete_features)]
+
+use std::env;
 
 use anyhow::Result;
-use flyer_orm::{DB, Query, mysql::MySQL, sqlite::SQLite};
+use flyer_orm::{DB, Query, sqlite::SQLite};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -20,7 +22,6 @@ pub struct Database;
 
 impl Database {
     pub type T = SQLite;
-    // pub type T = MySQL::<'q>;
 
     pub fn url<'q>() -> &'q str {
         return match env::var("ENVIRONMENT").unwrap_or("testing".to_string()).as_str() {
@@ -37,28 +38,44 @@ impl Database {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    DB::init();
     DB::add("sqlite", "./database.sqlite");
 
-    let users = Database::query()
+    // let users = Database::query()
+    //     .table("users")
+    //     .select(vec!["*"])
+    //     .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     .get::<User>(10)
+    //     .await
+    //     .unwrap();
+
+
+    // let sql = Database::query()
+    //     .table("users")
+    //     .select(vec!["*"])
+    //     .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     .limit(10)
+    //     .to_sql()
+    //     .unwrap();
+
+    let sql = Database::query()
         .table("users")
-        .select(vec!["*"])
-        .r#where("email", "=", "thembangubeni04@gmail.com")
-        .get::<User>(10)
+        .query_one::<User, _>("SELECT * FROM `users` WHERE email = ?", vec!["thembangubeni04@gmail.com"])
         .await
         .unwrap();
 
-    println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+    println!("\r\n\r\n ------------ SQL USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", sql);
 
-    let users = Database::query()
-        .table("users")
-        .select(vec!["*"])
-        .r#where("email", "=", "thembangubeni04@gmail.com")
-        .paginate::<User>(10, 1)
-        .await
-        .unwrap();
+    // println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
 
-    println!("\r\n\r\n ------------ PAGINATE USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+    // let users = Database::query()
+    //     .table("users")
+    //     .select(vec!["*"])
+    //     .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     .paginate::<User>(10, 1)
+    //     .await
+    //     .unwrap();
+
+    // println!("\r\n\r\n ------------ PAGINATE USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
         
     Ok(())
 }

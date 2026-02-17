@@ -1,12 +1,12 @@
 use anyhow::{Ok, Result};
 
 use crate::QueryBuilder;
-use crate::query::Statement;
+use crate::query::QueryStatement;
 
 pub(crate) struct Builder;
 
-impl <DB: sqlx::Database>QueryBuilder<DB> for Builder {
-    fn build<'q>(statement: &'q Statement<'q, DB>) -> Result<String> {
+impl QueryBuilder for Builder {
+    fn build<'q>(statement: &'q QueryStatement) -> Result<String> {
         let query = [
             "SELECT".to_string(),
                 format!("  {}", Self::select(statement).as_str()),
@@ -20,7 +20,7 @@ impl <DB: sqlx::Database>QueryBuilder<DB> for Builder {
 }
 
 impl Builder {
-    fn select<'q, DB: sqlx::Database>(statement: &'q Statement<'q, DB>) -> String {
+    fn select<'q>(statement: &'q QueryStatement) -> String {
         if statement.select.len() == 0 {
             return "*".to_string();
         }

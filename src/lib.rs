@@ -9,29 +9,27 @@ use anyhow::{Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, any::install_default_drivers};
 use sqlx::types::Type;
 
-use crate::query::{JoinQuery, Order, OrderQuery, Pagination, Statement, WhereQuery};
+use crate::query::{JoinQuery, Order, OrderQuery, Pagination, QueryStatement, Statement, WhereQuery};
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
 #[allow(async_fn_in_trait)]
-pub trait Executor<'q> {
+pub trait Executor: Default {
     type T: sqlx::Database;
 
-    fn new(statement: &'q Statement<'q, Self::T>) -> Self where Self: Sized;
+    async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>>; 
 
-    async fn db(&self, url: &str) -> Result<Pool<Self::T>>; 
+    fn to_sql<'q>(&'q self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
 
-    fn to_sql(&'q self) -> Result<String>;
-
-    async fn first<O>(&'q self) -> Result<O>
+    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn get<O>(& self) -> Result<Vec<O>>
+    async fn get<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn paginate<O>(&mut self) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 }
@@ -56,7 +54,7 @@ impl DB {
     #[allow(static_mut_refs)]
     pub fn query<'q, Exc>(connection: &str) -> Query::<'q, Exc>
     where
-        Exc: Executor<'q>
+        Exc: Executor
     {
         return unsafe { Query::new(CONNECTIONS.get(connection).unwrap()) };
     }
@@ -64,21 +62,21 @@ impl DB {
     #[allow(static_mut_refs)]
     pub fn query_url<'q, Exc>(url: &'q str) -> Query::<'q, Exc>
     where
-        Exc: Executor<'q>
+        Exc: Executor
     {
         return Query::new(url);
     }
 }
 
 
-pub struct Query<'q, Exc: Executor<'q>> {
+pub struct Query<'q, Exc: Executor> {
     statement: Statement<'q, Exc::T>,
     _marker: PhantomData<Exc>
 }
 
 impl <'q, Exc>Query<'q, Exc>
 where
-    Exc: Executor<'q>
+    Exc: Executor
 {
     pub fn new(url: &str) -> Self {
         return Self {
@@ -88,20 +86,20 @@ where
     }
 
     pub fn table(&mut self, name: &'q str) -> &mut Self {
-        self.statement.table = name.to_string();
+        self.statement.query.table = name.to_string();
 
         return self;
     }
 
     pub fn select(&mut self, columns: Vec<&str>) -> &mut Self {
-        self.statement.select = columns.iter().map(|c| c.to_string()).collect();
+        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
 
         return self;
     }
 
     // TODO: find better name...
     pub fn r#where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        self.statement.where_queries.push(WhereQuery {
+        self.statement.query.where_queries.push(WhereQuery {
             column: column.to_string(),
             operator: operator.to_string(),
             position: None // TODO: find better way for position...
@@ -113,7 +111,7 @@ where
     }
 
     pub fn and_where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        self.statement.where_queries.push(WhereQuery {
+        self.statement.query.where_queries.push(WhereQuery {
             column: column.to_string(),
             operator: operator.to_string(),
             position: Some(query::WhereQueryPosition::AND) // TODO: find better way for position...
@@ -125,7 +123,7 @@ where
     }
 
     pub fn or_where<T: 'q + Encode<'q, Exc::T> + Type<Exc::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        self.statement.where_queries.push(WhereQuery {
+        self.statement.query.where_queries.push(WhereQuery {
             column: column.to_string(),
             operator: operator.to_string(),
             position: Some(query::WhereQueryPosition::OR) // TODO: find better way for position...
@@ -137,7 +135,7 @@ where
     }
 
     pub fn order_by(&mut self, column: &str, order: Order) -> &mut Self {
-        self.statement.order_by.push(OrderQuery {
+        self.statement.query.order_by.push(OrderQuery {
             column: column.to_string(),
             order: order
         });
@@ -146,7 +144,7 @@ where
     }
 
     pub fn join(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        self.statement.join.push(JoinQuery {
+        self.statement.query.join.push(JoinQuery {
             table: table.to_string(),
             column: column.to_string(),
             operator: operator.to_string(),
@@ -157,7 +155,7 @@ where
     }
 
     pub fn limit(&mut self, limit: u64) -> &mut Self {
-        self.statement.limit = Some(limit);
+        self.statement.query.limit = Some(limit);
 
         return self;
     }
@@ -166,24 +164,23 @@ where
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        self.statement.limit = Some(limit);
+        self.statement.query.limit = Some(limit);
 
-        return Ok(Exc::new(&self.statement).get::<O>().await.unwrap());
+        return Ok(Exc::default().get::<O>(&self.statement).await.unwrap());
     }
 
     pub async fn paginate<O>(&'q mut self, limit: u64, page: u64) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Exc::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        self.statement.limit = Some(limit);
-        self.statement.page = Some(page); // TODO: calc offset
+        self.statement.query.limit = Some(limit);
+        self.statement.query.page = Some(page); // TODO: calc offset
 
-        return Ok(Exc::new(&mut self.statement).paginate::<O>().await.unwrap());
+        return Ok(Exc::default().paginate::<O>(&self.statement).await.unwrap());
     }
 }
 
 
-pub(crate) trait QueryBuilder<DB: sqlx::Database> {
-    // fn new() -> Self where Self: Sized; 
-    fn build<'q>(statement: &'q Statement<'q, DB>) -> Result<String>;
+pub(crate) trait QueryBuilder {
+    fn build<'q>(statement: &'q QueryStatement) -> Result<String>;
 }

@@ -32,15 +32,35 @@ pub(crate) struct JoinQuery {
 
 #[derive(Clone, Debug)]
 pub struct Statement<'q, DB: sqlx::Database> {
-    pub(crate) url: String,
-    pub(crate) table: String,
-    pub(crate) select: Vec<String>,
-    pub(crate) where_queries: Vec<WhereQuery>,
-    pub(crate) join: Vec<JoinQuery>,
-    pub(crate) order_by: Vec<OrderQuery>,
-    pub(crate) limit: Option<u64>,
-    pub(crate) page: Option<u64>, // TODO: must use `offset` or `page` must decide...
-    pub(crate) arguments: DB::Arguments<'q>, 
+    pub url: String,
+    pub query: QueryStatement,
+    pub arguments: DB::Arguments<'q>, 
+}
+
+
+#[derive(Clone, Debug)]
+pub struct QueryStatement {
+    pub table: String,
+    pub select: Vec<String>,
+    pub where_queries: Vec<WhereQuery>,
+    pub join: Vec<JoinQuery>,
+    pub order_by: Vec<OrderQuery>,
+    pub limit: Option<u64>,
+    pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
+}
+
+impl QueryStatement {
+    pub fn new() -> Self {
+        return Self {
+            table: String::new(),
+            select: Vec::new(),
+            where_queries: Vec::new(),
+            join: Vec::new(),
+            order_by: Vec::new(),
+            limit: None,
+            page: None,
+        }
+    }
 }
 
 impl <'q, DB>Statement<'q, DB>
@@ -50,13 +70,7 @@ where
     pub(crate) fn new(url: &str) -> Self {
         return Self {
             url: url.to_owned(),
-            table: String::new(),
-            select: Vec::new(),
-            where_queries: Vec::new(),
-            join: Vec::new(),
-            order_by: Vec::new(),
-            limit: None,
-            page: None,
+            query: QueryStatement::new(),
             arguments: Default::default(),
         }
     }

@@ -4,84 +4,76 @@ mod builder;
 use anyhow::Result;
 use sqlx::Pool;
 
-use crate::{Executor, QueryBuilder, query::{Pagination, Statement}, sqlite::builder::Builder};
+use crate::{Executor, QueryBuilder, query::{Pagination, Statement, Total}, sqlite::builder::Builder};
 
-pub struct SQLite<'q> {
-    statement: &'q Statement<'q, <SQLite<'q> as Executor<'q>>::T>
-}
+#[derive(Default)]
+pub struct SQLite;
 
-impl <'q>Executor<'q> for SQLite<'q> {
+impl Executor for SQLite {
     type T = sqlx::Sqlite;
-
-    fn new(statement: &'q Statement<'q, Self::T>) -> Self where Self: Sized {
-        return Self {
-            statement: statement
-        }
-    }
-
-    async fn db(&self, url: &str) -> Result<Pool<Self::T>> {
+    
+    async fn db<'q>(&self, url: &str) -> Result<Pool<Self::T>> {
         return Ok(sqlx::SqlitePool::connect(url).await.unwrap());
     }
     
-    fn to_sql(&self) -> Result<String> {
-        return  Ok(Builder::build(self.statement).unwrap());
+    fn to_sql<'q>(&'q self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
+        return Ok(Builder::build(&statement.query).unwrap());
     }
     
-    async fn first<O>(&self) -> Result<O>
+    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return Ok(
-            sqlx::query_as::<Self::T, O>(&Builder::build(self.statement).unwrap())
-                .fetch_one(&self.db(&self.statement.url).await.unwrap())
+            sqlx::query_as::<Self::T, O>(&Builder::build(&statement.query).unwrap())
+                .fetch_one(&self.db(&statement.url).await.unwrap())
                 .await
                 .unwrap()
         );
     }
     
-    async fn get<O>(&self) -> Result<Vec<O>>
+    async fn get<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return Ok(
-            sqlx::query_as::<Self::T, O>(&Builder::build(self.statement).unwrap())
-                .fetch_all(&self.db(&self.statement.url).await.unwrap())
+            sqlx::query_as::<Self::T, O>(&Builder::build(&statement.query).unwrap())
+                .fetch_all(&self.db(&statement.url).await.unwrap())
                 .await
                 .unwrap(),
         );
     }
     
-    // TODO: extract QueryStatement -> remove (arguments) allow clone...
-    async fn paginate<O>(&mut self) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
+        let mut query = statement.query.clone();
 
-        todo!();
+        query.select = vec!["COUNT(*) as total".to_string()];
+        query.limit = None;
+        query.page = None;
 
-        // let temp = (self.statement.select.clone(), self.statement.limit.clone(), self.statement.page.clone());
+        let db = self.db(&statement.url).await.unwrap();
 
-        // self.statement.select = vec!["COUNT(*) as total".to_string()];
-        // self.statement.limit = None;
-        // self.statement.page = None;
+        let total = sqlx::query_as::<Self::T, Total>(&Builder::build(&query).unwrap())
+            .fetch_one(&db)
+            .await
+            .unwrap();
 
-        // let total = self.first::<Total>().await.unwrap();
+        let items = sqlx::query_as::<Self::T, O>(&Builder::build(&statement.query).unwrap())
+            .fetch_all(&self.db(&statement.url).await.unwrap())
+            .await
+            .unwrap();
 
-        // self.statement.select = temp.0;
-        // self.statement.limit = None;
-        // self.statement.page = None;
-
-        // return Ok(
-        //     Pagination {
-        //         total: total.total,
-        //         page: self.statement.page.unwrap(),
-        //         per_page: self.statement.limit.unwrap(),
-        //         items: self.get().await.unwrap(),
-        //     },
-        // );
+        return Ok(
+            Pagination {
+                total: total.total,
+                page: statement.query.page.unwrap(),
+                per_page: statement.query.limit.unwrap(),
+                items: items,
+            }
+        );
     }
-    
-
-    
 }
 

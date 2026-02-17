@@ -1,5 +1,5 @@
 #![feature(inherent_associated_types)]
-use std::env;
+use std::{env, marker::PhantomData};
 
 use anyhow::Result;
 use flyer_orm::{DB, Query, mysql::MySQL, sqlite::SQLite};
@@ -16,13 +16,15 @@ pub struct User {
 }
 
 
-pub struct Database {}
+pub struct Database<'q> {
+    _marker: PhantomData<&'q ()>,
+}
 
-impl Database {
-    pub type T = SQLite;
-    // pub type T = MySQL;
+impl <'q>Database<'q> {
+    pub type T = SQLite::<'q>;
+    // pub type T = MySQL::<'q>;
 
-    pub fn url<'q>() -> &'q str {
+    pub fn url() -> &'q str {
         return match env::var("ENVIRONMENT").unwrap_or("testing".to_string()).as_str() {
             // "production"  => env::var("DATABASE_URL").unwrap().as_str(), // TODO: fix temp variable...
             "development" => "./database.sqlite",
@@ -30,7 +32,7 @@ impl Database {
         }
     }
 
-    pub fn query<'q>() -> Query<'q, Database::T> {
+    pub fn query() -> Query<'q, Database<'q>::T> {
         return DB::query_url::< Database::T>(Self::url());
     }
 }
@@ -50,15 +52,15 @@ async fn main() -> Result<()> {
 
     println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
 
-    let users = Database::query()
-        .table("users")
-        .select(vec!["*"])
-        .r#where("email", "=", "thembangubeni04@gmail.com")
-        .paginate::<User>(10, 1)
-        .await
-        .unwrap();
+    // let users = Database::query()
+    //     .table("users")
+    //     .select(vec!["*"])
+    //     .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     .paginate::<User>(10, 1)
+    //     .await
+    //     .unwrap();
 
-    println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+    // println!("\r\n\r\n ------------ PAGINATE USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
         
     Ok(())
 }

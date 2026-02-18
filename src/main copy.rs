@@ -2,14 +2,11 @@
 #![feature(associated_type_defaults)]
 #[allow(incomplete_features)]
 
-
 use std::env;
 
 use anyhow::Result;
-use flyer_orm::{DB, Database, Executor, Query, mysql::MySQL, sqlite::SQLite};
-use serde::{Serialize, de};
-use uuid::Uuid;
-// use sqlx::Database;
+use flyer_orm::{Database, sqlite::SQLite};
+use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
@@ -20,7 +17,6 @@ pub struct User {
     pub email: String,
     pub password: String,
 }
-
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Project {
@@ -60,16 +56,12 @@ async fn main() -> Result<()> {
     let transaction = db.transaction().await.unwrap();
 
     let users = db.query("users")
-        .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
-        .bind(Uuid::new_v4().to_string())
-        .bind("Themba Lucas")
-        .bind("Ngubeni")
-        .bind("thembangubeni05@gmail.com")
-        .bind("$2a$10$woMg6Ftrz8DyZCKhvPgMgOrO/YWaZq1JkM8KaAQlOKhBCcrSrboC.")
-        .execute()
+        .where_group(|group| {
+            return group;
+        })
+        .all::<User>()
         .await
         .unwrap();
-
 
     println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
 
@@ -77,11 +69,3 @@ async fn main() -> Result<()> {
         
     Ok(())
 }
-
-
-//   "uuid": "296598c0-095c-4c88-a48c-8af6c98022ff",
-//   "created_at": "2025-11-26 10:07:33",
-//   "first_name": "Themba Lucas",
-//   "last_name": "Ngubeni",
-//   "email": "thembangubeni04@gmail.com",
-//   "password": "$2a$10$woMg6Ftrz8DyZCKhvPgMgOrO/YWaZq1JkM8KaAQlOKhBCcrSrboC."

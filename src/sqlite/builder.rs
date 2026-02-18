@@ -1,7 +1,6 @@
 use anyhow::{Ok, Result};
 
-use crate::QueryBuilder;
-use crate::query::QueryStatement;
+use crate::query::{QueryBuilder, QueryStatement};
 
 #[derive(Default, Debug)]
 pub(crate) struct Builder;

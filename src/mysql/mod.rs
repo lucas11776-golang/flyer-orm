@@ -20,7 +20,6 @@ impl MySQL {
 impl Executor for MySQL {
     type T = MySql;
 
-
     async fn new(url: &str) -> Self where Self: Sized {
         todo!()
     }
@@ -30,6 +29,17 @@ impl Executor for MySQL {
     }
 
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
+        todo!()
+    }
+    
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool> {
+        todo!()
+    }
+    
+    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    where
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
         todo!()
     }
 

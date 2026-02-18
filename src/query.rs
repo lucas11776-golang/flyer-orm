@@ -6,6 +6,10 @@ use sqlx::{Encode, Transaction as SqlxTransaction, types::Type};
 
 use crate::Executor;
 
+pub(crate) trait QueryBuilder {
+    fn build(&self, statement: &QueryStatement) -> Result<String>;
+}
+
 #[derive(Clone, Debug)]
 pub struct WhereQuery {
     pub column: Option<String>,
@@ -14,8 +18,6 @@ pub struct WhereQuery {
     pub group: Option<Box<WhereQuery>>
 }
 
-
-
 #[derive(Debug)]
 pub struct WhereQueryGroup<'q, DB: sqlx::Database> {
     pub queries: Vec<WhereQuery>,
@@ -23,12 +25,10 @@ pub struct WhereQueryGroup<'q, DB: sqlx::Database> {
     _life: PhantomData<&'q ()>
 }
 
-
 impl <'q, DB>WhereQueryGroup<'q, DB>
 where
     DB: sqlx::Database
 {
-
     pub fn new() -> Self {
         return Self {
             queries: Vec::new(),
@@ -106,6 +106,7 @@ pub struct QueryStatement {
     pub order_by: Vec<OrderQuery>,
     pub limit: Option<u64>,
     pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
+    pub insert: Option<Vec<String>>,
 }
 
 impl QueryStatement {
@@ -120,6 +121,7 @@ impl QueryStatement {
             order_by: Vec::new(),
             limit: None,
             page: None,
+            insert: None,
         }
     }
 }

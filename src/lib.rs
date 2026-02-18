@@ -22,6 +22,12 @@ pub trait Executor {
 
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
 
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool>;
+
+    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+
     async fn query_all<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
@@ -175,7 +181,6 @@ where
         return self;
     }
 
-
     pub fn and_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
         return self;
     }
@@ -211,6 +216,17 @@ where
         return self;
     }
 
+
+
+    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
+        self.statement.arguments.add(value).unwrap();
+
+        return self;
+    }
+
+
+
+
     pub async fn query_all<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
@@ -245,9 +261,45 @@ where
     pub fn to_sql(&'q mut self) -> Result<String> {
         return Ok(self.db.to_sql(&self.statement).unwrap())
     }
+
+
+
+    pub fn insert_as<O>(&'q mut self, columns: Vec<&str>) -> InsertAs<'q, E, O>
+    where
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return InsertAs::new(self.db, &mut self.statement);
+    }
 }
 
+pub struct InsertAs<'q, E: Executor, O> {
+    db: &'q E,
+    statement: &'q mut Statement<'q, E::T>,
+    _marker: PhantomData<E>,
+    _type: PhantomData<O>
+}
 
-pub(crate) trait QueryBuilder {
-    fn build(&self, statement: &QueryStatement) -> Result<String>;
+impl <'q, E, O>InsertAs<'q, E, O>
+where
+    E: Executor,
+    O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+{
+    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
+        return Self {
+            db: db,
+            statement: statement,
+            _marker: PhantomData,
+            _type: PhantomData
+        }
+    }
+
+    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
+        self.statement.arguments.add(value).unwrap();
+
+        return self;
+    }
+
+    pub async fn execute(&'q mut self) -> Result<O> {
+        return Ok(self.db.insert_as::<O>(self.statement).await.unwrap());
+    }
 }

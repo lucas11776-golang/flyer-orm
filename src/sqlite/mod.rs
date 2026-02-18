@@ -4,7 +4,7 @@ mod builder;
 use anyhow::Result;
 use sqlx::{Arguments, Pool, Sqlite};
 
-use crate::{Executor, QueryBuilder, query::{Pagination, Statement, Total}, sqlite::builder::Builder};
+use crate::{Executor, query::{Pagination, QueryBuilder, Statement, Total}, sqlite::builder::Builder};
 
 #[derive(Debug)]
 pub struct SQLite {
@@ -27,7 +27,25 @@ impl Executor for SQLite {
     }
     
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        // return Ok(self.builder.build(&statement.query).unwrap());
+        return Ok(self.builder.build(&statement.query).unwrap());
+    }
+    
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool> {
+        todo!()
+    }
+    
+    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    where
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let columns = statement.query.insert.clone().unwrap();
+
+
+    
+
+        let sql = "INSERT INTO table_name (column1, column2) VALUES (value1, value2);";
+
+        // let a = sqlx::query_with(, arguments)
 
         todo!()
     }

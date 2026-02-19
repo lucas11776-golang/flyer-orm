@@ -267,6 +267,13 @@ where
         return Insert::new(&self.db, &mut self.statement);
     }
 
+    pub async fn first<O>(&'q mut self) -> Result<O>
+    where
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(self.db.first::<O>(&self.statement).await.unwrap())
+    }
+
     pub async fn all<O>(&'q mut self) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized

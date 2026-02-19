@@ -63,8 +63,12 @@ impl Builder {
         let mut conditions: Vec<String> = Vec::new();
 
         for where_query in &statement.where_queries {
-
-
+            if let Some(position) = &where_query.position {
+                match position {
+                    crate::query::QueryPosition::AND => conditions.push(String::from("AND")),
+                    crate::query::QueryPosition::OR => conditions.push(String::from("OR")),
+                }
+            }
 
             match &where_query.group {
                 Some(group) => {
@@ -77,9 +81,6 @@ impl Builder {
                     }
                 },
             }
-
-
-            
         }
 
         return conditions.join(" ");

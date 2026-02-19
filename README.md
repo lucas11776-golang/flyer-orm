@@ -1,6 +1,7 @@
 # Flyer-ORM
 
-## Basic ORM Skeleton
+## Basic ORM Skeleton.
+## Publish For Temp usage.
 
 ### TODO
 * Add query/execute raw query.

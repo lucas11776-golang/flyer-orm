@@ -1,6 +1,6 @@
 [package]
 name = "flyer-orm"
-version = "0.0.0"
+version = "0.0.1"
 edition = "2024"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"

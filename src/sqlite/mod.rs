@@ -1,15 +1,27 @@
 mod builder;
 
-
 use anyhow::Result;
 use sqlx::{Arguments, Pool, Sqlite};
 
-use crate::{Executor, query::{Pagination, QueryBuilder, Statement, Total}, sqlite::builder::Builder};
+use crate::{Executor, query::{Pagination, QueryBuilder, QueryStatement, Statement, Total, WhereQuery}, sqlite::builder::Builder};
 
 #[derive(Debug)]
 pub struct SQLite {
     db: Pool<Sqlite>,
     builder: Builder,
+}
+
+impl SQLite {
+    fn insert_sql(&self, query: &QueryStatement) -> Result<String> {
+        let columns = query.insert.clone().unwrap();
+
+        return Ok(format!(
+            "INSERT INTO {} ({}) VALUES ({});",
+            query.table,
+            columns.join(", "),
+            std::iter::repeat("?").take(columns.len()).collect::<Vec<_>>().join(", ")
+        ));
+    }
 }
 
 impl Executor for SQLite {
@@ -29,25 +41,40 @@ impl Executor for SQLite {
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
         return Ok(self.builder.build(&statement.query).unwrap());
     }
+
+    async fn execute<'q>(&self, sql: &'q str) -> Result<()> {
+        todo!();
+    }
     
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool> {
-        todo!()
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+        sqlx::query_with::<Self::T, _>(&self.insert_sql(&statement.query).unwrap(), statement.arguments.clone())
+            .execute(&self.db)
+            .await
+            .unwrap();
+        return Ok(());
     }
     
     async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        let columns = statement.query.insert.clone().unwrap();
+    {   
+        let result = sqlx::query_with::<Self::T, _>(&self.insert_sql(&statement.query).unwrap(), statement.arguments.clone())
+            .execute(&self.db)
+            .await
+            .unwrap();
+        
+        let mut statement = Statement::<Self::T>::new(&statement.query.table);
 
+        statement.query.where_queries.push(WhereQuery {
+            column: Some("rowid".to_string()),
+            operator: Some("=".to_string()),
+            position: None,
+            group: None
+        });
 
-    
+        statement.arguments.add(result.last_insert_rowid()).unwrap();
 
-        let sql = "INSERT INTO table_name (column1, column2) VALUES (value1, value2);";
-
-        // let a = sqlx::query_with(, arguments)
-
-        todo!()
+        return Ok(self.first(&statement).await.unwrap());
     }
     
     async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
@@ -120,25 +147,23 @@ impl Executor for SQLite {
         query.select = vec!["COUNT(*) as total".to_string()];
         query.limit = None;
         query.page = None;
-        
-
-        let total = sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-            .fetch_one(&self.db)
-            .await
-            .unwrap();
-
-        let items = sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-            .fetch_all(&self.db)
-            .await
-            .unwrap();
 
         return Ok(
             Pagination {
-                total: total.total,
                 page: statement.query.page.unwrap(),
                 per_page: statement.query.limit.unwrap(),
-                items: items,
+                total: sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
+                    .fetch_one(&self.db)
+                    .await
+                    .unwrap()
+                    .total,
+                items: sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
+                    .fetch_all(&self.db)
+                    .await
+                    .unwrap(),
             }
         );
     }
 }
+
+

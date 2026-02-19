@@ -31,8 +31,12 @@ impl Executor for MySQL {
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
         todo!()
     }
+
+    async fn execute<'q>(&self, sql: &'q str) -> Result<()> {
+        todo!();
+    }
     
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool> {
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
         todo!()
     }
     

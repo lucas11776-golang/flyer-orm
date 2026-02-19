@@ -3,7 +3,7 @@ pub mod postgres;
 pub mod mysql;
 pub mod query;
 
-use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
+use std::{collections::HashMap, marker::PhantomData, os::macos::raw::stat, str, sync::LazyLock};
 
 use anyhow::{Ok, Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
@@ -22,7 +22,9 @@ pub trait Executor {
 
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
 
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool>;
+    async fn execute<'q>(&self, sql: &'q str) -> Result<()>;
+
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 
     async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
@@ -62,11 +64,13 @@ impl DB {
         unsafe { CONNECTIONS.remove(connection); }
     }
 
-
     #[allow(static_mut_refs)]
-    pub async fn db<E: Executor>(connection: &str) -> Database::<E>
-    {
+    pub async fn db<E: Executor>(connection: &str) -> Database::<E> {
         return unsafe { Database::new(CONNECTIONS.get(connection).unwrap()).await };
+    }
+
+    pub async fn db_with_url<E: Executor>(url: &str) -> Database::<E> {
+        return Database::new(url).await;
     }
 }
 
@@ -84,6 +88,11 @@ impl <E: Executor>Database<E> {
 
     pub async fn transaction<'q>(&self) -> Result<Transaction<'q, E::T>> {
         return Ok(Transaction::new(self.executor.db().begin().await.unwrap()));
+    }
+
+
+    pub async fn execute(&self, sql: &str) -> Result<()> {
+        todo!();
     }
 
     pub fn query<'q>(&'q self, table: &str) -> Query<'q, E> {
@@ -216,17 +225,20 @@ where
         return self;
     }
 
-
-
     pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
         self.statement.arguments.add(value).unwrap();
 
         return self;
     }
 
+    pub async fn query<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(self.db.query_all::<O, T>(sql, args).await.unwrap());
+    }
 
-
-
+    // TODO: needs sub classes as insert_as to allow easy binding
     pub async fn query_all<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
@@ -234,11 +246,25 @@ where
         return Ok(self.db.query_all::<O, T>(sql, args).await.unwrap());
     }
 
+    // TODO: needs sub classes as insert_as to allow easy binding
     pub async fn query_one<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return Ok(self.db.query_one::<O, T>(sql, args).await.unwrap())
+    }
+
+    pub fn insert_as<O>(&'q mut self, columns: Vec<&str>) -> InsertAs<'q, E, O>
+    where
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        self.statement.query.insert = Some(columns.iter().map(|c| c.to_string()).collect());
+
+        return InsertAs::new(self.db, &mut self.statement);
+    }
+
+    pub fn insert(&'q mut self) -> Insert<'q, E> {
+        return Insert::new(&self.db, &mut self.statement);
     }
 
     pub async fn all<O>(&'q mut self) -> Result<Vec<O>>
@@ -260,15 +286,6 @@ where
 
     pub fn to_sql(&'q mut self) -> Result<String> {
         return Ok(self.db.to_sql(&self.statement).unwrap())
-    }
-
-
-
-    pub fn insert_as<O>(&'q mut self, columns: Vec<&str>) -> InsertAs<'q, E, O>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        return InsertAs::new(self.db, &mut self.statement);
     }
 }
 
@@ -301,5 +318,36 @@ where
 
     pub async fn execute(&'q mut self) -> Result<O> {
         return Ok(self.db.insert_as::<O>(self.statement).await.unwrap());
+    }
+}
+
+pub struct Insert<'q, E: Executor> {
+    db: &'q E,
+    statement: &'q mut Statement<'q, E::T>,
+    _marker: PhantomData<E>
+}
+
+impl <'q, E>Insert<'q, E>
+where
+    E: Executor
+{
+    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
+        // statement.arguments = Default::default();
+
+        return Self {
+            db: db,
+            statement: statement,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
+        self.statement.arguments.add(value).unwrap();
+
+        return self;
+    }
+
+    pub async fn execute(&'q mut self) -> Result<()> {
+        return self.db.insert(self.statement).await;
     }
 }

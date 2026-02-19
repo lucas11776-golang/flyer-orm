@@ -22,20 +22,6 @@ pub struct User {
 }
 
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct Project {
-    pub uuid: String,
-    pub organization_uuid: String,
-    pub user_uuid: String,
-    pub container_id: String,
-    pub created_at: String,
-    pub ip_address: String,
-    pub name: String,
-    pub framework: String,
-    pub model: String,
-    pub description: String,
-}
-
 pub struct Connection;
 
 impl Connection {
@@ -62,10 +48,10 @@ async fn main() -> Result<()> {
     let users = db.query("users")
         .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
         .bind(Uuid::new_v4().to_string())
-        .bind("Themba Lucas")
-        .bind("Ngubeni")
-        .bind("thembangubeni05@gmail.com")
-        .bind("$2a$10$woMg6Ftrz8DyZCKhvPgMgOrO/YWaZq1JkM8KaAQlOKhBCcrSrboC.")
+        .bind("Jane")
+        .bind("Can")
+        .bind("jane@gmail.com")
+        .bind("password@123")
         .execute()
         .await
         .unwrap();

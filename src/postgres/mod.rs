@@ -32,7 +32,11 @@ impl Executor for Postgres {
         todo!()
     }
 
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<bool> {
+    async fn execute<'q>(&self, sql: &'q str) -> Result<()> {
+        todo!();
+    }
+
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
         todo!()
     }
     

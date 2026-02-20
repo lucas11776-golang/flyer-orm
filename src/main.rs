@@ -45,19 +45,35 @@ async fn main() -> Result<()> {
     let db: Database<Connection::T> = Connection::db().await;
     let transaction = db.transaction().await.unwrap();
 
-    let users = db.query("users")
-        .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
-        .bind(Uuid::new_v4().to_string())
-        .bind("Jane")
-        .bind("Can")
-        .bind("jane@gmail.com")
-        .bind("password@123")
-        .execute()
+    // let users = db.query("users")
+    //     .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
+    //     .bind(Uuid::new_v4().to_string())
+    //     .bind("Jane")
+    //     .bind("Can")
+    //     .bind("jane@gmail.com")
+    //     .bind("password@123")
+    //     .execute()
+    //     .await
+    //     .unwrap();
+
+    // db.query("users")
+    //     .update(vec!["first_name"])
+    //     .bind("Peterson")
+    //     .r#where("uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
+    //     .execute()
+    //     .await
+    //     .unwrap();
+
+
+
+    db.query("users")
+        .r#where("uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
+        .delete()
         .await
         .unwrap();
 
 
-    println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
+    // println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
 
     transaction.commit().await.unwrap();
         

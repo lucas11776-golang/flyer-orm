@@ -1,50 +1,103 @@
+use std::vec;
+
 use anyhow::{Ok, Result};
 
 use crate::query::{QueryBuilder, QueryStatement};
 
-#[derive(Default, Debug)]
-pub(crate) struct Builder;
+#[derive(Debug)]
+pub(crate) struct Builder<'q> {
+    statement: &'q QueryStatement,
+}
 
-impl QueryBuilder for Builder {
-    fn build(&self, statement: &QueryStatement) -> Result<String> {
-        let mut query = vec![
-            "SELECT".to_string(),
-                format!("{}", Self::select(statement).as_str()),
-            "FROM".to_string(),
-                format!("{}", statement.table),
+impl <'q>QueryBuilder<'q> for Builder<'q> {
+    fn new(statement: &'q QueryStatement) -> Self {
+        return Self {
+            statement: statement
+        };
+    }
+
+    fn insert(&self) -> Result<String> {
+        let columns = self.statement.columns.clone().unwrap();
+
+        return Ok(format!(
+            "INSERT INTO {} ({}) VALUES ({});",
+            self.statement.table,
+            columns.join(", "),
+            std::iter::repeat("?").take(columns.len()).collect::<Vec<_>>().join(", ")
+        ));
+    }
+    
+    fn update(&self) -> Result<String> {
+        let mut sql = vec![
+            String::from(format!("UPDATE {}", self.statement.table)),
+            format!("SET {}", self.statement
+                .columns
+                .clone()
+                .unwrap()
+                .iter()
+                .map(|f| format!("{} = ?", f))
+                .collect::<Vec<_>>()
+                .join(", ")
+            )
         ];
 
-        if statement.join.len() != 0 {
-            query.push(format!("{}", Self::join(statement).as_str()));
-        }
-
-        if statement.where_queries.len() != 0 {
-            query.extend([
+        if self.statement.where_queries.len() != 0 {
+            sql.extend([
                 "WHERE".to_string(),
-                    format!("{}", Self::r#where(statement).as_str()),
+                    format!("{}", self.r#where().unwrap().as_str()),
             ]);
         }
 
-        return Ok(query.join(" "));
+        return Ok(sql.join(" "));
     }
     
-}
+    fn delete(&self) -> Result<String> {
+        let mut sql = vec![String::from(format!("DELETE FROM {}", self.statement.table))];
 
-impl Builder {
-    fn select<'q>(statement: &'q QueryStatement) -> String {
-        if statement.select.len() == 0 {
-            return "*".to_string();
+        if self.statement.where_queries.len() != 0 {
+            sql.extend([
+                "WHERE".to_string(),
+                    format!("{}", self.r#where().unwrap().as_str()),
+            ]);
         }
 
-        return statement.select.join(", ");
+        return Ok(sql.join(" "));
     }
-}
 
-impl Builder {
-    fn join<'q>(statement: &'q QueryStatement) -> String {
+    fn query(&self) -> Result<String> {
+        let mut sql = vec![
+            "SELECT".to_string(),
+                format!("{}", self.select().unwrap().as_str()),
+            "FROM".to_string(),
+                format!("{}", self.statement.table),
+        ];
+
+        if self.statement.join.len() != 0 {
+            sql.push(format!("{}", self.join().unwrap().as_str()));
+        }
+
+        if self.statement.where_queries.len() != 0 {
+            sql.extend([
+                "WHERE".to_string(),
+                    format!("{}", self.r#where().unwrap().as_str()),
+            ]);
+        }
+
+        return Ok(sql.join(" "));
+    }
+
+    fn select(&self) -> Result<String> {
+        if self.statement.select.len() == 0 {
+            return Ok(String::from("*"));
+        }
+
+        return Ok(self.statement.select.join(", "));
+    }
+
+    fn join(&self) -> Result<String> {
         let mut conditions: Vec<String> = Vec::new();
 
-        for join in &statement.join {
+        for join in &self.statement.join {
             match join.join_type {
                 crate::query::JoinType::LeftJoin => conditions.push(format!("LEFT JOIN {} ON {} {} {}", join.table, join.column, join.operator, join.column_table)),
                 crate::query::JoinType::RightJoin => conditions.push(format!("RIGHT JOIN {} ON {} {} {}", join.table, join.column, join.operator, join.column_table)),
@@ -54,15 +107,13 @@ impl Builder {
             }
         }
 
-        return conditions.join(" ");
+        return Ok(conditions.join(" "));
     }
-}
 
-impl Builder {
-    fn r#where<'q>(statement: &'q QueryStatement) -> String {
+    fn r#where(&self) -> Result<String> {
         let mut conditions: Vec<String> = Vec::new();
 
-        for where_query in &statement.where_queries {
+        for where_query in &self.statement.where_queries {
             if let Some(position) = &where_query.position {
                 match position {
                     crate::query::QueryPosition::AND => conditions.push(String::from("AND")),
@@ -83,7 +134,11 @@ impl Builder {
             }
         }
 
-        return conditions.join(" ");
+        return Ok(conditions.join(" "));
     }
+    
+    fn group_by(&self) -> Result<String> {
+        todo!()
+    }
+    
 }
-

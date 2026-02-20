@@ -4,10 +4,16 @@ use anyhow::Result;
 use serde::Serialize;
 use sqlx::{Encode, Transaction as SqlxTransaction, types::Type};
 
-use crate::Executor;
-
-pub(crate) trait QueryBuilder {
-    fn build(&self, statement: &QueryStatement) -> Result<String>;
+pub(crate) trait QueryBuilder<'q> {
+    fn new(statement: &'q QueryStatement) -> Self where Self: Sized;
+    fn insert(&self) -> Result<String>;
+    fn update(&self) -> Result<String>;
+    fn delete(&self) -> Result<String>;
+    fn query(&self) -> Result<String>;
+    fn select(&self) -> Result<String>;
+    fn join(&self) -> Result<String>;
+    fn r#where(&self) -> Result<String>;
+    fn group_by(&self) -> Result<String>;
 }
 
 #[derive(Clone, Debug)]
@@ -43,8 +49,9 @@ where
 }
 
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum QueryPosition {
+    #[default]
     AND,
     OR
 }
@@ -82,7 +89,6 @@ pub struct JoinQuery {
 
 #[derive(Clone, Debug)]
 pub struct Statement<'q, DB: sqlx::Database> {
-    // pub url: String,
     pub query: QueryStatement,
     pub arguments: DB::Arguments<'q>, 
 }
@@ -106,7 +112,7 @@ pub struct QueryStatement {
     pub order_by: Vec<OrderQuery>,
     pub limit: Option<u64>,
     pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
-    pub insert: Option<Vec<String>>,
+    pub columns: Option<Vec<String>>,
 }
 
 impl QueryStatement {
@@ -121,7 +127,7 @@ impl QueryStatement {
             order_by: Vec::new(),
             limit: None,
             page: None,
-            insert: None,
+            columns: None,
         }
     }
 }

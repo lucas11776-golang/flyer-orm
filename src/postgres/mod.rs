@@ -46,6 +46,18 @@ impl Executor for Postgres {
     {
         todo!()
     }
+    
+    async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+        todo!()
+    }
+    
+    async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
+        return Ok(0);
+    }
+    
+    async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+        todo!()
+    }
 
     async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where

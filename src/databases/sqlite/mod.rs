@@ -1,9 +1,14 @@
-mod builder;
-
 use anyhow::Result;
-use sqlx::{Arguments, Pool, Sqlite, mysql::MySqlQueryResult};
+use sqlx::{Arguments, Pool, Sqlite};
 
-use crate::{Executor, databases::sqlite::builder::Builder, query::{Pagination, QueryBuilder, Statement, Total, logic::Where}};
+use crate::{
+    Executor,
+    databases::sqlite::{builder::Builder, query::SQLiteQueryResult},
+    query::{Pagination, QueryBuilder, QueryResult, Statement, Total, logic::Where}
+};
+
+pub mod query;
+mod builder;
 
 #[derive(Debug)]
 pub struct SQLite {
@@ -34,6 +39,18 @@ impl SQLite {
                 .unwrap()
         );
     }
+
+    async fn execute_query<'q>(&'q self, sql: String, arguments: <<SQLite as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<SQLiteQueryResult> {
+        let result = sqlx::query_with::<<SQLite as Executor>::T, _>(&sql, arguments)
+            .execute(&self.db)
+            .await
+            .unwrap();
+
+        return Ok(SQLiteQueryResult {
+            affected: result.rows_affected(),
+            id: result.last_insert_rowid() as u64,
+        });
+    }
 }
 
 impl Executor for SQLite {
@@ -42,7 +59,7 @@ impl Executor for SQLite {
     async fn new(url: &str) -> Self where Self: Sized {
         return Self {
             db: sqlx::SqlitePool::connect(url).await.unwrap(),
-        }
+        };
     }
     
     fn db<'q>(&'q self) -> &'q Pool<Self::T> {
@@ -53,26 +70,22 @@ impl Executor for SQLite {
         return Ok(Builder::new(&statement.query).query().unwrap());
     }
 
-    async fn execute<'q>(&self, _sql: &'q str) -> Result<()> {
+    #[allow(refining_impl_trait)]
+    async fn execute<'q>(&self, _sql: &'q str) -> Result<SQLiteQueryResult> {
         todo!();
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).insert().unwrap(), statement.arguments.clone())
-            .execute(&self.db)
-            .await
-            .unwrap();
+        self.execute_query(Builder::new(&statement.query).insert().unwrap(), statement.arguments.clone()).await.unwrap();
+
         return Ok(());
     }
     
     async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {   
-        let query_result = sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).insert().unwrap(), statement.arguments.clone())
-            .execute(&self.db)
-            .await
-            .unwrap();
+    {
+        let result = self.execute_query(Builder::new(&statement.query).insert().unwrap(), statement.arguments.clone()).await.unwrap();
 
         let mut statement = Statement::<Self::T>::new(&statement.query.table);
 
@@ -83,16 +96,13 @@ impl Executor for SQLite {
             group: None
         });
 
-        statement.arguments.add(query_result.last_insert_rowid()).unwrap();
+        statement.arguments.add(result.last_inserted() as i64).unwrap();
 
         return Ok(self.first(&statement).await.unwrap());
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).update().unwrap(), statement.arguments.clone())
-            .execute(&self.db)
-            .await
-            .unwrap();
+        self.execute_query(Builder::new(&statement.query).update().unwrap(), statement.arguments.clone()).await.unwrap();
         return Ok(());
     }
     
@@ -109,10 +119,7 @@ impl Executor for SQLite {
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).delete().unwrap(), statement.arguments.clone())
-            .execute(&self.db)
-            .await
-            .unwrap();
+        self.execute_query(Builder::new(&statement.query).delete().unwrap(), statement.arguments.clone()).await.unwrap();
         return Ok(());
     }
     
@@ -142,12 +149,7 @@ impl Executor for SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(
-            sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                .fetch_one(&self.db)
-                .await
-                .unwrap()
-        );
+        return self.fetch_one(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
     }
     
     async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
@@ -157,7 +159,6 @@ impl Executor for SQLite {
         return self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
     }
     
-    // TODO: refactor...
     async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
@@ -172,16 +173,9 @@ impl Executor for SQLite {
             Pagination {
                 page: statement.query.page.unwrap(),
                 per_page: statement.query.limit.unwrap(),
-                total:
-                    sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                        .fetch_one(&self.db)
-                        .await
-                        .unwrap()
-                        .total,
+                total: self.fetch_one::<Total>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap().total,
                 items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
             }
         );
     }
 }
-
-

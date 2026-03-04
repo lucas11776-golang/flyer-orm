@@ -3,7 +3,7 @@ use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 use anyhow::{Ok, Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
-use crate::query::{Order, Pagination, Statement, Transaction, logic::{Condition, Join, JoinType, OrderQuery, Where}};
+use crate::query::{Order, Pagination, QueryResult, Statement, Transaction, logic::{Condition, Join, JoinType, OrderQuery, Where}};
 
 pub mod databases;
 pub mod query;
@@ -20,7 +20,7 @@ pub trait Executor {
 
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<()>;
+    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult>;
 
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 
@@ -489,7 +489,7 @@ where
         for v in self.where_arguments.iter() {
             self.statement.arguments.add(v).unwrap();
         }
-
+        
         return self.db.update(self.statement).await;
     }
 }

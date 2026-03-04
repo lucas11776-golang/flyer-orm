@@ -1,9 +1,12 @@
-mod builder;
+
 
 use anyhow::Result;
 use sqlx::{FromRow, MySql, MySqlPool, Pool};
 
-use crate::{Executor, query::{Pagination, Statement}};
+use crate::{Executor, databases::mysql::query::MySQLQueryResult, query::{Pagination, Statement}};
+
+mod builder;
+pub mod query;
 
 pub struct MySQL {
     db: Pool<MySql>,
@@ -32,7 +35,8 @@ impl Executor for MySQL {
         todo!()
     }
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<()> {
+    #[allow(refining_impl_trait)]
+    async fn execute<'q>(&self, sql: &'q str) -> Result<MySQLQueryResult> {
         todo!();
     }
     

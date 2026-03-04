@@ -1,9 +1,10 @@
 mod builder;
+pub mod query;
 
 use anyhow::Result;
 use sqlx::{FromRow, PgPool, Pool, Postgres as DBPostgres};
 
-use crate::{Executor, query::{Pagination, Statement}};
+use crate::{Executor, databases::postgres::query::PostgresQueryResult, query::{Pagination, Statement}};
 
 pub struct Postgres {
     db: Pool<DBPostgres>,
@@ -32,7 +33,8 @@ impl Executor for Postgres {
         todo!()
     }
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<()> {
+    #[allow(refining_impl_trait)]
+    async fn execute<'q>(&self, sql: &'q str) -> Result<PostgresQueryResult> {
         todo!();
     }
 

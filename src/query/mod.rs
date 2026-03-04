@@ -18,6 +18,11 @@ pub(crate) trait QueryBuilder<'q> {
     fn group_by(&self) -> Result<String>;
 }
 
+pub trait QueryResult {
+    fn rows_affected(&self) -> u64;
+    fn last_inserted(&self) -> u64;
+}
+
 #[derive(Clone, Debug)]
 pub enum Order {
     ASC,

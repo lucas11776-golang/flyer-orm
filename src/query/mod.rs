@@ -1,59 +1,21 @@
-use std::marker::PhantomData;
-
 use anyhow::Result;
 use serde::Serialize;
-use sqlx::{Encode, Transaction as SqlxTransaction, types::Type};
+use sqlx::{Transaction as SqlxTransaction};
+
+use crate::query::logic::{Condition, Join, OrderQuery, Where};
+
+pub mod logic;
 
 pub(crate) trait QueryBuilder<'q> {
-    fn new(statement: &'q QueryStatement) -> Self where Self: Sized;
+    fn new(statement: &'q Query) -> Self where Self: Sized;
+    fn query(&self) -> Result<String>;
     fn insert(&self) -> Result<String>;
     fn update(&self) -> Result<String>;
     fn delete(&self) -> Result<String>;
-    fn query(&self) -> Result<String>;
     fn select(&self) -> Result<String>;
     fn join(&self) -> Result<String>;
     fn r#where(&self) -> Result<String>;
     fn group_by(&self) -> Result<String>;
-}
-
-#[derive(Clone, Debug)]
-pub struct WhereQuery {
-    pub column: Option<String>,
-    pub operator: Option<String>,
-    pub position: Option<QueryPosition>,
-    pub group: Option<Box<WhereQuery>>
-}
-
-#[derive(Debug)]
-pub struct WhereQueryGroup<'q, DB: sqlx::Database> {
-    pub queries: Vec<WhereQuery>,
-    _marker: PhantomData<DB>,
-    _life: PhantomData<&'q ()>
-}
-
-impl <'q, DB>WhereQueryGroup<'q, DB>
-where
-    DB: sqlx::Database
-{
-    pub fn new() -> Self {
-        return Self {
-            queries: Vec::new(),
-            _marker: PhantomData,
-            _life: PhantomData
-        }
-    }
-
-    pub fn r#where<T: 'q + Encode<'q, DB> + Type<DB>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        todo!()
-    }
-}
-
-
-#[derive(Clone, Debug, Default)]
-pub enum QueryPosition {
-    #[default]
-    AND,
-    OR
 }
 
 #[derive(Clone, Debug)]
@@ -62,60 +24,45 @@ pub enum Order {
     DESC
 }
 
-#[derive(Clone, Debug)]
-pub struct OrderQuery {
-    pub column: String,
-    pub order: Order
+impl ToString for Order {
+    fn to_string(&self) -> String {
+        return match self {
+            Order::ASC => String::from("ASC"),
+            Order::DESC => String::from("DESC"),
+        };
+    }
 }
 
-#[derive(Clone, Debug, Default)]
-pub enum JoinType {
-    InnerJoin,
-    #[default]
-    LeftJoin,
-    RightJoin,
-    FullOuterJoin,
-    CrossJoin
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct JoinQuery {
-    pub table: String,
-    pub column: String,
-    pub operator: String,
-    pub column_table: String, 
-    pub join_type: JoinType
-}
 
 #[derive(Clone, Debug)]
 pub struct Statement<'q, DB: sqlx::Database> {
-    pub query: QueryStatement,
+    pub query: Query,
     pub arguments: DB::Arguments<'q>, 
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct HavingQuery {
+pub struct Having {
     pub column: String,
     pub operator: String,
     pub value: String,
-    pub position: Option<QueryPosition>
+    pub position: Option<Condition>
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct QueryStatement {
+pub struct Query {
     pub table: String,
     pub select: Vec<String>,
-    pub join: Vec<JoinQuery>,
-    pub where_queries: Vec<WhereQuery>,
+    pub join: Vec<Join>,
+    pub where_queries: Vec<Where>,
     pub group_by: Option<String>,
-    pub having: Vec<HavingQuery>,
+    pub having: Vec<Having>,
     pub order_by: Vec<OrderQuery>,
     pub limit: Option<u64>,
     pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
     pub columns: Option<Vec<String>>,
 }
 
-impl QueryStatement {
+impl Query {
     pub fn new(table: &str) -> Self {
         return Self {
             table: table.to_string(),
@@ -143,7 +90,7 @@ where
 {
     pub(crate) fn new(table: &str) -> Self {
         return Self {
-            query: QueryStatement::new(table),
+            query: Query::new(table),
             arguments: Default::default(),
         }
     }

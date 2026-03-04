@@ -3,7 +3,7 @@ mod builder;
 use anyhow::Result;
 use sqlx::{Arguments, Pool, Sqlite};
 
-use crate::{Executor, query::{Pagination, QueryBuilder, Statement, Total, WhereQuery}, sqlite::builder::Builder};
+use crate::{Executor, databases::sqlite::builder::Builder, query::{Pagination, QueryBuilder, Statement, Total, logic::Where}};
 
 #[derive(Debug)]
 pub struct SQLite {
@@ -27,7 +27,7 @@ impl Executor for SQLite {
         return Ok(Builder::new(&statement.query).query().unwrap());
     }
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<()> {
+    async fn execute<'q>(&self, _sql: &'q str) -> Result<()> {
         todo!();
     }
     
@@ -50,7 +50,7 @@ impl Executor for SQLite {
         
         let mut statement = Statement::<Self::T>::new(&statement.query.table);
 
-        statement.query.where_queries.push(WhereQuery {
+        statement.query.where_queries.push(Where {
             column: Some("rowid".to_string()),
             operator: Some("=".to_string()),
             position: None,
@@ -63,15 +63,38 @@ impl Executor for SQLite {
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).update().unwrap(), statement.arguments.clone())
+
+        println!("{:?}", &Builder::new(&statement.query).update().unwrap());
+
+
+        println!("RESULT COUNT {:?}\r\n\r\n", statement.arguments.len());
+
+        let a= sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).update().unwrap(), statement.arguments.clone())
             .execute(&self.db)
             .await
             .unwrap();
+
+
+        println!("RESULT {:?}\r\n\r\n", a);
+
+
         return Ok(());
     }
     
     async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
-        return Ok(0);
+        let query = {
+            let mut query = statement.query.clone();
+            query.select = vec!["COUNT(*) as total".to_string()];
+            query
+        };
+
+        return Ok(
+            sqlx::query_as_with::<Self::T, Total, _>(&Builder::new(&query).query().unwrap(), statement.arguments.clone())
+                .fetch_one(&self.db)
+                .await
+                .unwrap()
+                .total
+        );
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
@@ -88,9 +111,7 @@ impl Executor for SQLite {
     {
         let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
 
-        for arg in args {
-            arguments.add(arg).unwrap();
-        }
+        for arg in args { arguments.add(arg).unwrap(); }
 
         return Ok(
             sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
@@ -157,15 +178,17 @@ impl Executor for SQLite {
             Pagination {
                 page: statement.query.page.unwrap(),
                 per_page: statement.query.limit.unwrap(),
-                total: sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                    .fetch_one(&self.db)
-                    .await
-                    .unwrap()
-                    .total,
-                items: sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                    .fetch_all(&self.db)
-                    .await
-                    .unwrap(),
+                total:
+                    sqlx::query_as_with::<Self::T, Total, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
+                        .fetch_one(&self.db)
+                        .await
+                        .unwrap()
+                        .total,
+                items:
+                    sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
+                        .fetch_all(&self.db)
+                        .await
+                        .unwrap(),
             }
         );
     }

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use flyer_orm::{DB, sqlite::SQLite};
+use flyer_orm::{DB, databases::sqlite::SQLite};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]

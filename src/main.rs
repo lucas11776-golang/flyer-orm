@@ -2,14 +2,11 @@
 #![feature(associated_type_defaults)]
 #[allow(incomplete_features)]
 
-
 use std::env;
 
 use anyhow::Result;
-use flyer_orm::{DB, Database, Executor, Query, mysql::MySQL, sqlite::SQLite};
-use serde::{Serialize, de};
-use uuid::Uuid;
-// use sqlx::Database;
+use flyer_orm::{Database, databases::sqlite::SQLite};
+use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
@@ -20,7 +17,6 @@ pub struct User {
     pub email: String,
     pub password: String,
 }
-
 
 pub struct Connection;
 
@@ -43,39 +39,17 @@ impl Connection {
 #[tokio::main]
 async fn main() -> Result<()> {
     let db: Database<Connection::T> = Connection::db().await;
-    let transaction = db.transaction().await.unwrap();
+    // let transaction = db.transaction().await.unwrap();
 
-    // let users = db.query("users")
-    //     .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
-    //     .bind(Uuid::new_v4().to_string())
-    //     .bind("Jane")
-    //     .bind("Can")
-    //     .bind("jane@gmail.com")
-    //     .bind("password@123")
-    //     .execute()
-    //     .await
-    //     .unwrap();
-
-    // db.query("users")
-    //     .update(vec!["first_name"])
-    //     .bind("Peterson")
-    //     .r#where("uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
-    //     .execute()
-    //     .await
-    //     .unwrap();
-
-
-
-    db.query("users")
-        .r#where("uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
-        .delete()
+    db.query("projects")
+        .update(vec!["model"])
+        .r#where("uuid", "=", "28a1032d-754c-4734-ba68-82ab3f9b4c09")
+        .bind("openai")
+        .execute()
         .await
         .unwrap();
 
-
-    // println!("\r\n\r\n ------------ GET USERS ------------ \r\n\r\n {:?} \r\n\r\n\r\n\r\n", users);
-
-    transaction.commit().await.unwrap();
+    // transaction.commit().await.unwrap();
         
     Ok(())
 }

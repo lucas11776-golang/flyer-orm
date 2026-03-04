@@ -39,7 +39,7 @@ impl Connection {
 #[tokio::main]
 async fn main() -> Result<()> {
     let db: Database<Connection::T> = Connection::db().await;
-    // let transaction = db.transaction().await.unwrap();
+    let transaction = db.transaction().await.unwrap();
 
     db.query("projects")
         .update(vec!["model"])
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
         .await
         .unwrap();
 
-    // transaction.commit().await.unwrap();
+    transaction.commit().await.unwrap();
         
     Ok(())
 }

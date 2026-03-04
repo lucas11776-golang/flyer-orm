@@ -1,13 +1,39 @@
 mod builder;
 
 use anyhow::Result;
-use sqlx::{Arguments, Pool, Sqlite};
+use sqlx::{Arguments, Pool, Sqlite, mysql::MySqlQueryResult};
 
 use crate::{Executor, databases::sqlite::builder::Builder, query::{Pagination, QueryBuilder, Statement, Total, logic::Where}};
 
 #[derive(Debug)]
 pub struct SQLite {
     db: Pool<Sqlite>,
+}
+
+impl SQLite {
+    async fn fetch_one<'q, O>(&'q self, sql: String, arguments: <<SQLite as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<O>
+    where
+        O: for<'r> sqlx::FromRow<'r, <<SQLite as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(
+            sqlx::query_as_with::<<SQLite as Executor>::T, O, _>(&sql, arguments)
+                .fetch_one(&self.db)
+                .await
+                .unwrap()
+        );
+    }
+
+    async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<SQLite as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::FromRow<'r, <<SQLite as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(
+            sqlx::query_as_with::<<SQLite as Executor>::T, O, _>(&sql, arguments)
+                .fetch_all(&self.db)
+                .await
+                .unwrap()
+        );
+    }
 }
 
 impl Executor for SQLite {
@@ -47,7 +73,7 @@ impl Executor for SQLite {
             .execute(&self.db)
             .await
             .unwrap();
-        
+
         let mut statement = Statement::<Self::T>::new(&statement.query.table);
 
         statement.query.where_queries.push(Where {
@@ -63,21 +89,10 @@ impl Executor for SQLite {
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-
-        println!("{:?}", &Builder::new(&statement.query).update().unwrap());
-
-
-        println!("RESULT COUNT {:?}\r\n\r\n", statement.arguments.len());
-
-        let a= sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).update().unwrap(), statement.arguments.clone())
+        sqlx::query_with::<Self::T, _>(&Builder::new(&statement.query).update().unwrap(), statement.arguments.clone())
             .execute(&self.db)
             .await
             .unwrap();
-
-
-        println!("RESULT {:?}\r\n\r\n", a);
-
-
         return Ok(());
     }
     
@@ -88,13 +103,9 @@ impl Executor for SQLite {
             query
         };
 
-        return Ok(
-            sqlx::query_as_with::<Self::T, Total, _>(&Builder::new(&query).query().unwrap(), statement.arguments.clone())
-                .fetch_one(&self.db)
-                .await
-                .unwrap()
-                .total
-        );
+        return self.fetch_one::<Total>(Builder::new(&query).query().unwrap(), statement.arguments.clone())
+            .await
+            .map(|t| t.total);
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
@@ -113,12 +124,7 @@ impl Executor for SQLite {
 
         for arg in args { arguments.add(arg).unwrap(); }
 
-        return Ok(
-            sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
-                .fetch_all(&self.db)
-                .await
-                .unwrap()
-        )
+        return self.fetch_all(String::from(sql), arguments).await;
     }
     
     async fn query_one<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<O>
@@ -127,16 +133,9 @@ impl Executor for SQLite {
     {
         let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
 
-        for arg in args {
-            arguments.add(arg).unwrap();
-        }
+        for arg in args { arguments.add(arg).unwrap(); }
 
-        return Ok(
-            sqlx::query_as_with::<Self::T, O, _>(sql, arguments)
-                .fetch_one(&self.db)
-                .await
-                .unwrap()
-        )
+        return self.fetch_one(String::from(sql), arguments).await;
     }
     
     async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
@@ -155,12 +154,7 @@ impl Executor for SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(
-            sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                .fetch_all(&self.db)
-                .await
-                .unwrap(),
-        );
+        return self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
     }
     
     // TODO: refactor...
@@ -184,11 +178,7 @@ impl Executor for SQLite {
                         .await
                         .unwrap()
                         .total,
-                items:
-                    sqlx::query_as_with::<Self::T, O, _>(&self.to_sql(statement).unwrap(), statement.arguments.clone())
-                        .fetch_all(&self.db)
-                        .await
-                        .unwrap(),
+                items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
             }
         );
     }

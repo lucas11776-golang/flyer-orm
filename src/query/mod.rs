@@ -1,21 +1,24 @@
 use anyhow::Result;
 use serde::Serialize;
-use sqlx::{Transaction as SqlxTransaction};
 
-use crate::query::logic::{Condition, Join, OrderQuery, Where};
+use crate::query::logic::SqlQuery;
 
 pub mod logic;
 
 pub(crate) trait QueryBuilder<'q> {
-    fn new(statement: &'q Query) -> Self where Self: Sized;
+    fn new(statement: &'q SqlQuery) -> Self where Self: Sized;
     fn query(&self) -> Result<String>;
     fn insert(&self) -> Result<String>;
     fn update(&self) -> Result<String>;
     fn delete(&self) -> Result<String>;
     fn select(&self) -> Result<String>;
+    fn from(&self) -> Result<String>;
     fn join(&self) -> Result<String>;
     fn r#where(&self) -> Result<String>;
     fn group_by(&self) -> Result<String>;
+    fn having(&self) -> Result<String>;
+    fn order_by(&self) -> Result<String>;
+    fn limit(&self) -> Result<String>;
 }
 
 pub trait QueryResult {
@@ -38,50 +41,10 @@ impl ToString for Order {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct Statement<'q, DB: sqlx::Database> {
-    pub query: Query,
+    pub query: SqlQuery,
     pub arguments: DB::Arguments<'q>, 
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Having {
-    pub column: String,
-    pub operator: String,
-    pub value: String,
-    pub position: Option<Condition>
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct Query {
-    pub table: String,
-    pub select: Vec<String>,
-    pub join: Vec<Join>,
-    pub where_queries: Vec<Where>,
-    pub group_by: Option<String>,
-    pub having: Vec<Having>,
-    pub order_by: Vec<OrderQuery>,
-    pub limit: Option<u64>,
-    pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
-    pub columns: Option<Vec<String>>,
-}
-
-impl Query {
-    pub fn new(table: &str) -> Self {
-        return Self {
-            table: table.to_string(),
-            select: Vec::new(),
-            join: Vec::new(),
-            where_queries: Vec::new(),
-            having: Vec::new(),
-            group_by: None,
-            order_by: Vec::new(),
-            limit: None,
-            page: None,
-            columns: None,
-        }
-    }
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -95,7 +58,7 @@ where
 {
     pub(crate) fn new(table: &str) -> Self {
         return Self {
-            query: Query::new(table),
+            query: SqlQuery::new(table),
             arguments: Default::default(),
         }
     }
@@ -103,14 +66,12 @@ where
 
 #[derive(Debug)]
 pub struct Transaction<'t, T: sqlx::Database> {
-    transaction: SqlxTransaction<'t, T>
+    transaction: sqlx::Transaction<'t, T>
 }
 
 impl <'t, T: sqlx::Database>Transaction<'t, T> {
-    pub(crate) fn new(transaction: SqlxTransaction<'t, T>) -> Self {
-        return Self {
-            transaction: transaction
-        }
+    pub(crate) fn new(transaction: sqlx::Transaction<'t, T>) -> Self {
+        return Self { transaction: transaction }
     }
 
     pub async fn commit(self) -> Result<()> {

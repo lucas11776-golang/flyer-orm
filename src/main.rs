@@ -41,13 +41,38 @@ async fn main() -> Result<()> {
     let db: Database<Connection::T> = Connection::db().await;
     let transaction = db.transaction().await.unwrap();
 
-    db.query("projects")
-        .update(vec!["model"])
-        .r#where("uuid", "=", "28a1032d-754c-4734-ba68-82ab3f9b4c09")
-        .bind("openai")
-        .execute()
+    // db.query("projects")
+    //     .update(vec!["model"])
+    //     .r#where("uuid", "=", "28a1032d-754c-4734-ba68-82ab3f9b4c09")
+    //     .bind("gemini")
+    //     .execute()
+    //     .await
+    //     .unwrap();
+
+
+    let sql = db.query("users")
+        .r#where("uuid", "=", "6216a37d-cf48-4a00-900d-d205b5b6758d")
+        .and_where("first_name", "=", "Jane")
+        .first::<User>()
         .await
+        // .to_sql()
         .unwrap();
+
+    println!("SQL -> {:?}", sql);
+
+    // let user = db.query("users")
+    //     .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
+    //     .bind("296598c0-095c-4c88-a48c-8af6c98022fe")
+    //     .bind("Lucas")
+    //     .bind("Themba Lucas")
+    //     .bind("Ngubeni")
+    //     .bind("thembangubeni04@gmail.com")
+    //     .bind("$2a$10$woMg6Ftrz8DyZCKhvPgMgOrO/YWaZq1JkM8KaAQlOKhBCcrSrboC.")
+    //     .execute()
+    //     .await
+    //     .unwrap();
+
+    // println!("{:?}", user);
 
     transaction.commit().await.unwrap();
         

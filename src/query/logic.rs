@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sqlx::{Encode, Type};
 
-use crate::query::Order;
+use crate::query;
 
 #[derive(Clone, Debug, Default)]
 pub enum Condition {
@@ -11,11 +11,20 @@ pub enum Condition {
     OR
 }
 
+impl ToString for Condition {
+    fn to_string(&self) -> String {
+        return match self {
+            Condition::AND => String::from("AND"),
+            Condition::OR => String::from("OR"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Where {
+    pub condition: Option<Condition>,
     pub column: Option<String>,
     pub operator: Option<String>,
-    pub position: Option<Condition>,
     pub group: Option<Box<Where>>
 }
 
@@ -43,11 +52,10 @@ where
     }
 }
 
-
 #[derive(Clone, Debug)]
-pub struct OrderQuery {
+pub struct Order {
     pub column: String,
-    pub order: Order
+    pub order: query::Order,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -67,4 +75,43 @@ pub struct Join {
     pub operator: String,
     pub column_table: String, 
     pub join_type: JoinType
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Having {
+    pub column: String,
+    pub operator: String,
+    pub value: String,
+    pub position: Option<Condition>
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SqlQuery {
+    pub table: String,
+    pub select: Vec<String>,
+    pub join: Vec<Join>,
+    pub where_queries: Vec<Where>,
+    pub group_by: Option<String>,
+    pub having: Vec<Having>,
+    pub order_by: Vec<Order>,
+    pub limit: Option<u64>,
+    pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
+    pub columns: Vec<String>,
+}
+
+impl SqlQuery {
+    pub fn new(table: &str) -> Self {
+        return Self {
+            table: table.to_string(),
+            select: Vec::new(),
+            join: Vec::new(),
+            where_queries: Vec::new(),
+            having: Vec::new(),
+            group_by: None,
+            order_by: Vec::new(),
+            limit: None,
+            page: None,
+            columns: Vec::new(),
+        }
+    }
 }

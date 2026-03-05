@@ -4,7 +4,7 @@
 ## Publish For Temp usage.
 
 ### TODO
-* Add query/execute raw query.
+* Impl pagination
 
 
 ```sh

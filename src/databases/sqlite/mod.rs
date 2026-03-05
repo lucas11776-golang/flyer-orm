@@ -70,9 +70,8 @@ impl Executor for SQLite {
         return Ok(Builder::new(&statement.query).query().unwrap());
     }
 
-    #[allow(refining_impl_trait)]
-    async fn execute<'q>(&self, _sql: &'q str) -> Result<SQLiteQueryResult> {
-        todo!();
+    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
+        return self.execute_query(String::from(sql), Default::default()).await;
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
@@ -92,7 +91,7 @@ impl Executor for SQLite {
         statement.query.where_queries.push(Where {
             column: Some("rowid".to_string()),
             operator: Some("=".to_string()),
-            position: None,
+            condition: None,
             group: None
         });
 
@@ -158,7 +157,7 @@ impl Executor for SQLite {
     {
         return self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
     }
-    
+
     async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized

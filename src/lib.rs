@@ -1,59 +1,21 @@
 use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 
 use anyhow::{Ok, Result};
-use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
+use sqlx::{Arguments, Encode, FromRow, types::Type};
 
-use crate::query::{Order, Pagination, QueryResult, Statement, Transaction, logic::{Condition, Join, JoinType, OrderQuery, Where}};
+use crate::{executor::Executor, query::{Order, Pagination, QueryResult, Statement, Transaction, logic::{self, Condition, Join, JoinType, Where}}};
 
 pub mod databases;
 pub mod query;
+pub mod executor;
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
-#[allow(async_fn_in_trait)]
-pub trait Executor {
+// pub(crate) static mut DATABASES: LazyLock<Vec<dyn Connection<T = dyn Database>>> = LazyLock::new(|| Vec::new());
+
+
+pub trait Connection {
     type T: sqlx::Database;
-
-    async fn new(url: &str) -> Self where Self: Sized;
-
-    fn db<'q>(&'q self) -> &'q Pool<Self::T>; 
-
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
-
-    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult>;
-
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
-
-    async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
-
-    async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64>;
-
-    async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
-
-    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
-    async fn query_all<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
-    async fn query_one<'q, O, T: 'q + Encode<'q, Self::T> + Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<O>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
-    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
-    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
-    async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
-
 }
 
 pub struct DB;
@@ -95,8 +57,8 @@ impl <E: Executor>Database<E> {
         return Ok(Transaction::new(self.executor.db().begin().await.unwrap()));
     }
 
-    pub async fn execute(&self, sql: &str) -> Result<()> {
-        todo!();
+    pub async fn execute(&self, sql: &str) -> Result<impl QueryResult> {
+        return self.executor.execute(sql).await;
     }
 
     pub fn query<'q>(&'q self, table: &str) -> Query<'q, E> {
@@ -147,7 +109,7 @@ where
         self.statement.query.where_queries.push(Where {
             column: Some(column.to_string()),
             operator: Some(operator.to_string()),
-            position: None,
+            condition: None,
             group: None
         });
 
@@ -164,7 +126,7 @@ where
         self.statement.query.where_queries.push(Where {
             column: Some(column.to_string()),
             operator: Some(operator.to_string()),
-            position: Some(Condition::AND),
+            condition: Some(Condition::AND),
             group: None
         });
 
@@ -181,7 +143,7 @@ where
         self.statement.query.where_queries.push(Where {
             column: Some(column.to_string()),
             operator: Some(operator.to_string()),
-            position: Some(Condition::OR),
+            condition: Some(Condition::OR),
             group: None
         });
 
@@ -203,7 +165,7 @@ where
     // }
 
     pub fn order_by(&mut self, column: &str, order: Order) -> &mut Self {
-        self.statement.query.order_by.push(OrderQuery {
+        self.statement.query.order_by.push(logic::Order {
             column: column.to_string(),
             order: order
         });
@@ -260,19 +222,19 @@ where
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        self.statement.query.columns = Some(columns.iter().map(|c| c.to_string()).collect());
+        self.statement.query.columns = columns.iter().map(|c| c.to_string()).collect();
 
         return InsertAs::new(self.db, &mut self.statement);
     }
 
     pub fn insert(&'q mut self, columns: Vec<&str>) -> Insert<'q, E> {
-        self.statement.query.columns = Some(columns.iter().map(|c| c.to_string()).collect());
+        self.statement.query.columns = columns.iter().map(|c| c.to_string()).collect();
 
         return Insert::new(&self.db, &mut self.statement);
     }
 
     pub fn update<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, columns: Vec<&str>) -> Update<'q, E, T> {
-        self.statement.query.columns = Some(columns.iter().map(|c| c.to_string()).collect());
+        self.statement.query.columns = columns.iter().map(|c| c.to_string()).collect();
 
         return Update::new(&self.db, &mut self.statement);
     }
@@ -383,14 +345,8 @@ where
 pub struct Update<'q, E: Executor, T: 'q + Encode<'q, E::T> + Type<E::T>> {
     db: &'q E,
     statement: &'q mut Statement<'q, E::T>,
-    // insert_arguments: <E::T as SqlxDatabase>::Arguments<'q>,
-    // where_arguments: <E::T as SqlxDatabase>::Arguments<'q>,
-
-    
     insert_arguments: Vec<T>,
     where_arguments: Vec<T>,
-
-    
     _marker: PhantomData<E>
 }
 
@@ -409,10 +365,7 @@ where
     }
 
     pub fn bind(&'q mut self, value: T) -> &'q mut Self {
-        // self.insert_arguments.add(value).unwrap();
-
         self.insert_arguments.push(value);
-
         return self;
     }
 
@@ -424,7 +377,7 @@ where
         self.statement.query.where_queries.push(Where {
             column: Some(column.to_string()),
             operator: Some(operator.to_string()),
-            position: None,
+            condition: None,
             group: None
         });
 
@@ -441,7 +394,7 @@ where
         self.statement.query.where_queries.push(Where {
             column: Some(column.to_string()),
             operator: Some(operator.to_string()),
-            position: Some(Condition::AND),
+            condition: Some(Condition::AND),
             group: None
         });
 
@@ -458,7 +411,7 @@ where
         self.statement.query.where_queries.push(Where {
             column: Some(column.to_string()),
             operator: Some(operator.to_string()),
-            position: Some(Condition::OR),
+            condition: Some(Condition::OR),
             group: None
         });
 

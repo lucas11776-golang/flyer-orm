@@ -138,22 +138,52 @@ where
     // }
 
     pub fn order_by(&mut self, column: &str, order: Order) -> &mut Self {
-        self.statement.query.order_by.push(logic::Order {
+        if self.statement.query.order_by.is_none() {
+            self.statement.query.order_by = Some(vec![logic::Order {
+                column: column.to_string(),
+                order: order
+            }]);
+
+            return self;
+        }
+
+        self.statement.query.order_by.as_mut().unwrap().push(logic::Order {
             column: column.to_string(),
             order: order
+        });
+
+        return self;
+    }
+
+    fn join_push(&mut self, join_type: JoinType, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        self.statement.query.join.push(Join {
+            table: String::from(table),
+            column: String::from(column),
+            operator: String::from(operator),
+            column_table: String::from(column_table),
+            join_type: join_type
         });
         return self;
     }
 
-    pub fn join(&mut self, table: &str, column: &str, column_table: &str) -> &mut Self {
-        self.statement.query.join.push(Join {
-            table: table.to_string(),
-            column: column.to_string(),
-            operator: "=".to_string(),
-            column_table: column_table.to_string(),
-            join_type: JoinType::LeftJoin 
-        });
-        return self;
+    pub fn join(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        return self.join_push(JoinType::LeftJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_inner(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        return self.join_push(JoinType::InnerJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_right(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        return self.join_push(JoinType::RightJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_full_outer(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        return self.join_push(JoinType::FullOuterJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_cross(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
+        return self.join_push(JoinType::CrossJoin , table, column, operator, column_table);
     }
 
     pub fn limit(&mut self, limit: u64) -> &mut Self {

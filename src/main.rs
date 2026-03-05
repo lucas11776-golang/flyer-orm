@@ -3,9 +3,10 @@
 #[allow(incomplete_features)]
 
 use std::env;
+use std::{fs::File, io::Write};
 
 use anyhow::Result;
-use flyer_orm::{Database, databases::sqlite::SQLite};
+use flyer_orm::{Database, databases::sqlite::SQLite, query::Order};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -16,6 +17,20 @@ pub struct User {
     pub last_name: String,
     pub email: String,
     pub password: String,
+}
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Project {
+    pub uuid: String,
+    pub created_at: String,
+    pub organization_uuid: String,
+    pub user_uuid: String,
+    pub container_id: String,
+    pub ip_address: String,
+    pub name: String,
+    pub framework: String,
+    pub model: String,
+    pub description: String,
 }
 
 pub struct Connection;
@@ -43,22 +58,29 @@ async fn main() -> Result<()> {
 
     // db.query("projects")
     //     .update(vec!["model"])
-    //     .r#where("uuid", "=", "28a1032d-754c-4734-ba68-82ab3f9b4c09")
+    //     .r#where("uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
     //     .bind("gemini")
     //     .execute()
     //     .await
     //     .unwrap();
 
+    
 
-    let sql = db.query("users")
-        .r#where("uuid", "=", "6216a37d-cf48-4a00-900d-d205b5b6758d")
-        .and_where("first_name", "=", "Jane")
-        .first::<User>()
-        .await
-        // .to_sql()
-        .unwrap();
 
-    println!("SQL -> {:?}", sql);
+    // let sql = db.query("users")
+    //     .r#where("uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
+    //     .and_where("first_name", "=", "Jane")
+    //     .order_by("created_at", Order::ASC)
+    //     .order_by("first_name", Order::DESC)
+    //     .all::<User>()
+    //     .await
+    //     // .to_sql()
+    //     .unwrap();
+
+    // println!("SQL -> {:?}", sql);
+
+
+    
 
     // let user = db.query("users")
     //     .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
@@ -66,13 +88,33 @@ async fn main() -> Result<()> {
     //     .bind("Lucas")
     //     .bind("Themba Lucas")
     //     .bind("Ngubeni")
-    //     .bind("thembangubeni04@gmail.com")
+    //     .bind("thembangubeni05@gmail.com")
     //     .bind("$2a$10$woMg6Ftrz8DyZCKhvPgMgOrO/YWaZq1JkM8KaAQlOKhBCcrSrboC.")
     //     .execute()
     //     .await
     //     .unwrap();
 
     // println!("{:?}", user);
+
+    
+
+
+    let projects = db.query("users")
+        .select(vec!["projects.*"])
+        .r#where("users.uuid", "=", "296598c0-095c-4c88-a48c-8af6c98022ff")
+        .order_by("users.created_at", Order::ASC)
+        .join("projects", "users.uuid", "=", "projects.user_uuid")
+        .all::<Project>()
+        .await
+        // .to_sql()
+        .unwrap();
+
+    File::create("projects.json")
+        .unwrap()
+        .write_all(serde_json::to_string_pretty(&projects).unwrap().as_bytes())
+        .unwrap();
+
+    println!("SQL -> {:?}", projects);
 
     transaction.commit().await.unwrap();
         

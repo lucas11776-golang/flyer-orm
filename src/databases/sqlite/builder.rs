@@ -126,13 +126,30 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
     }
 
     fn having(&self) -> Result<String> {
-        // todo!()
-        return Ok(String::new());
+        return Ok(
+            self.statement
+                .having
+                .clone()
+                .map(|t| format!("{} {} ?", t.column, t.operator))
+                .or(Some(String::new()))
+                .unwrap()
+        );
     }
 
     fn order_by(&self) -> Result<String> {
-        // todo!()
-        return Ok(String::new());
+        return Ok(
+            self.statement
+                .order_by
+                .clone()
+                .map(|ol| {
+                    format!(
+                        "ORDER BY {}",
+                        ol.iter().map(|o| format!("{} {}", o.column, o.order.to_string())).collect::<Vec<_>>().join(", ")
+                    )
+                })
+                .or(Some(String::new()))
+                .unwrap()
+        );
     }
 
     fn limit(&self) -> Result<String> {

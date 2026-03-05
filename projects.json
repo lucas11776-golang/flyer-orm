@@ -1,0 +1,26 @@
+[
+  {
+    "uuid": "28a1032d-754c-4734-ba68-82ab3f9b4c09",
+    "created_at": "2025-11-26 14:11:31",
+    "organization_uuid": "",
+    "user_uuid": "296598c0-095c-4c88-a48c-8af6c98022ff",
+    "container_id": "9cdb4dd95d0ec214ae9cbcc0f5b77c26dd1f69b86e44d875e7eca2ffe7a9d7a2",
+    "ip_address": "127.0.0.2",
+    "name": "Golang",
+    "framework": "golang",
+    "model": "gemini",
+    "description": "Golang"
+  },
+  {
+    "uuid": "f9828df6-47db-4ae1-b684-d808114fadd9",
+    "created_at": "2026-01-21 09:39:23",
+    "organization_uuid": "",
+    "user_uuid": "296598c0-095c-4c88-a48c-8af6c98022ff",
+    "container_id": "9b75dc72f01a87025bed632a68c7a25c0150e2dcc79374c166097941f62a256d",
+    "ip_address": "127.0.0.2",
+    "name": "Email Temple",
+    "framework": "html",
+    "model": "gemini",
+    "description": "Email Designer"
+  }
+]

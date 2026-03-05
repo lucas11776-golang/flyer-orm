@@ -10,9 +10,7 @@ pub(crate) struct Builder<'q> {
 
 impl <'q>QueryBuilder<'q> for Builder<'q> {
     fn new(statement: &'q SqlQuery) -> Self where Self: Sized {
-        return Self {
-            statement: statement
-        };
+        return Self { statement: statement };
     }
 
     fn query(&self) -> Result<String> {
@@ -97,16 +95,16 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         return Ok(
             format!(
                 "WHERE {}",
-                self.statement.where_queries.iter().map(|where_query| {
+                self.statement.where_queries.iter().map(|clause| {
                     return String::from(
                         format!(
                             "{} {}",
-                            where_query.condition.clone().map(|t| t.to_string()).or(Some(String::from(""))).unwrap(),
-                            match &where_query.group {
+                            clause.condition.clone().map(|t| t.to_string()).or(Some(String::from(""))).unwrap(),
+                            match &clause.group {
                                 Some(_group) => String::from(""), // TODO: implement will need Where to hold Encode/Value for order.
-                                None => match where_query.operator.clone().unwrap().as_str().to_lowercase().as_str() {
-                                    "like" => format!("{} LIKE '%' || ? || '%'", where_query.column.clone().unwrap()),
-                                    _ => format!("{} {} ?",  where_query.column.clone().unwrap(), where_query.operator.clone().unwrap()),
+                                None => match clause.operator.clone().unwrap().to_ascii_lowercase().as_str() {
+                                    "like" => format!("{} LIKE '%' || ? || '%'", clause.column.clone().unwrap()),
+                                    _ => format!("{} {} ?",  clause.column.clone().unwrap(), clause.operator.clone().unwrap()),
                                 }
                             }
                         ).trim()

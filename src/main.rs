@@ -109,10 +109,10 @@ async fn main() -> Result<()> {
         // .to_sql()
         .unwrap();
 
-    File::create("projects.json")
-        .unwrap()
-        .write_all(serde_json::to_string_pretty(&projects).unwrap().as_bytes())
-        .unwrap();
+    // File::create("projects.json")
+    //     .unwrap()
+    //     .write_all(serde_json::to_string_pretty(&projects).unwrap().as_bytes())
+    //     .unwrap();
 
     println!("SQL -> {:?}", projects);
 

@@ -67,7 +67,7 @@ impl Executor for SQLite {
     }
     
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        return Ok(Builder::new(&statement.query).query().unwrap());
+        return Ok(Builder::new(&statement.query).query());
     }
 
     async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
@@ -75,7 +75,7 @@ impl Executor for SQLite {
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).insert().unwrap(), statement.arguments.clone()).await.unwrap();
+        self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
 
         return Ok(());
     }
@@ -84,7 +84,7 @@ impl Executor for SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        let result = self.execute_query(Builder::new(&statement.query).insert().unwrap(), statement.arguments.clone()).await.unwrap();
+        let result = self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
 
         let mut statement = Statement::<Self::T>::new(&statement.query.table);
 
@@ -101,7 +101,7 @@ impl Executor for SQLite {
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).update().unwrap(), statement.arguments.clone()).await.unwrap();
+        self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone()).await.unwrap();
         return Ok(());
     }
     
@@ -112,13 +112,13 @@ impl Executor for SQLite {
             query
         };
 
-        return self.fetch_one::<Total>(Builder::new(&query).query().unwrap(), statement.arguments.clone())
+        return self.fetch_one::<Total>(Builder::new(&query).query(), statement.arguments.clone())
             .await
             .map(|t| t.total);
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).delete().unwrap(), statement.arguments.clone()).await.unwrap();
+        self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone()).await.unwrap();
         return Ok(());
     }
     

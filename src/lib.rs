@@ -3,7 +3,10 @@ use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 use anyhow::{Ok, Result};
 use sqlx::{Arguments, Encode, FromRow, types::Type};
 
-use crate::{executor::Executor, query::{Order, Pagination, QueryResult, Statement, Transaction, logic::{self, Condition, Join, JoinType, Where}}};
+use crate::{
+    executor::Executor,
+    query::{Order, Pagination, QueryResult, Statement, Transaction, logic::{self, Condition, Join, JoinType, Where}}
+};
 
 pub mod databases;
 pub mod query;

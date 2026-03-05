@@ -4,7 +4,11 @@ pub mod query;
 use anyhow::Result;
 use sqlx::{FromRow, PgPool, Pool, Postgres as DBPostgres};
 
-use crate::{Executor, databases::postgres::query::PostgresQueryResult, query::{Pagination, Statement}};
+use crate::{
+    Executor,
+    databases::postgres::query::PostgresQueryResult,
+    query::{Pagination, Statement}
+};
 
 pub struct Postgres {
     db: Pool<DBPostgres>,

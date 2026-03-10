@@ -8,6 +8,52 @@ pub(crate) struct Builder<'q> {
     statement: &'q SqlQuery,
 }
 
+impl <'q>QueryBuilder<'q> for Builder<'q> {
+    fn new(statement: &'q SqlQuery) -> Self where Self: Sized {
+        return Self { statement: statement };
+    }
+
+    fn query(&self) -> String {
+        return format!(
+            "{};",
+            vec![self.select(), self.from(), self.join(), self.r#where(), self.group_by(), self.having(), self.order_by(), self.limit()]
+                .iter()
+                .filter(|q| !q.is_empty())
+                .map(|q| String::from(q))
+                .collect::<Vec<String>>()
+                .join(" ")
+        );
+    }
+
+    fn insert(&self) -> String {
+        return format!(
+            "INSERT INTO {} ({}) VALUES ({});",
+            self.statement.table,
+            self.statement.columns.clone().join(", "),
+            std::iter::repeat("?").take(self.statement.columns.len()).collect::<Vec<_>>().join(", ")
+        );
+    }
+
+    fn update(&self) -> String {
+        return format!(
+            "UPDATE {} SET {} {};",
+            self.statement.table,
+            self.statement.columns.iter().map(|c| format!("{} = ?", c)).collect::<Vec<_>>().join(" "),
+            self.r#where()
+        );
+    }
+
+    fn delete(&self) -> String {
+        return String::from(
+            format!(
+                "DELETE FROM {} {};",
+                self.statement.table,
+                self.r#where()
+            ).trim()
+        );
+    }
+}
+
 impl <'q>Builder<'q> {
     fn select(&self) -> String {
         if self.statement.select.is_empty() {
@@ -99,50 +145,4 @@ impl <'q>Builder<'q> {
     fn limit(&self) -> String {
         return String::new();
     }    
-}
-
-impl <'q>QueryBuilder<'q> for Builder<'q> {
-    fn new(statement: &'q SqlQuery) -> Self where Self: Sized {
-        return Self { statement: statement };
-    }
-
-    fn query(&self) -> String {
-        return format!(
-            "{};",
-            vec![self.select(), self.from(), self.join(), self.r#where(), self.group_by(), self.having(), self.order_by(), self.limit()]
-                .iter()
-                .filter(|q| !q.is_empty())
-                .map(|q| String::from(q))
-                .collect::<Vec<String>>()
-                .join(" ")
-        );
-    }
-
-    fn insert(&self) -> String {
-        return format!(
-            "INSERT INTO {} ({}) VALUES ({});",
-            self.statement.table,
-            self.statement.columns.clone().join(", "),
-            std::iter::repeat("?").take(self.statement.columns.len()).collect::<Vec<_>>().join(", ")
-        );
-    }
-
-    fn update(&self) -> String {
-        return format!(
-            "UPDATE {} SET {} {};",
-            self.statement.table,
-            self.statement.columns.iter().map(|c| format!("{} = ?", c)).collect::<Vec<_>>().join(" "),
-            self.r#where()
-        );
-    }
-
-    fn delete(&self) -> String {
-        return String::from(
-            format!(
-                "DELETE FROM {} {};",
-                self.statement.table,
-                self.r#where()
-            ).trim()
-        );
-    }
 }

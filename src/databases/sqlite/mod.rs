@@ -120,7 +120,7 @@ impl Executor for SQLite {
 
         return self.fetch_one::<SQLiteTotal>(Builder::new(&query).query(), statement.arguments.clone())
             .await
-            .map(|t| t.total);
+            .map(|t| t.total as u64);
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
@@ -176,9 +176,9 @@ impl Executor for SQLite {
 
         return Ok(
             Pagination {
-                page: statement.query.page.unwrap(),
-                per_page: statement.query.limit.unwrap(),
-                total: self.fetch_one::<SQLiteTotal>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap().total,
+                page: statement.query.page.unwrap() as u64,
+                per_page: statement.query.limit.unwrap() as u64,
+                total: self.fetch_one::<SQLiteTotal>(Builder::new(&query).query(), statement.arguments.clone()).await.unwrap().total as u64,
                 items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
             }
         );

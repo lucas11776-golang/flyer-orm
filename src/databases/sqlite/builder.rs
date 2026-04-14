@@ -143,6 +143,10 @@ impl <'q>Builder<'q> {
     }
 
     fn limit(&self) -> String {
-        return String::new();
+        return self.statement.limit.map(|_limit| {
+            return format!("LIMIT ?{}", self.statement.page.map(|_t| {
+                return format!(" OFFSET ?");
+            }).unwrap_or(String::new()));
+        }).unwrap_or(String::new());
     }    
 }

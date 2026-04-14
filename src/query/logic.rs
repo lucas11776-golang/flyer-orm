@@ -91,8 +91,8 @@ pub(crate) struct SqlQuery {
     pub group_by: Option<String>,
     pub having: Option<Having>,
     pub order_by: Option<Vec<Order>>,
-    pub limit: Option<u64>,
-    pub page: Option<u64>, // TODO: must use `offset` or `page` must decide...
+    pub limit: Option<i64>,
+    pub page: Option<i64>, // TODO: must use `offset` or `page` must decide...
     pub columns: Vec<String>,
 }
 

@@ -184,9 +184,9 @@ impl Executor for Postgres {
 
         return Ok(
             Pagination {
-                page: statement.query.page.unwrap(),
-                per_page: statement.query.limit.unwrap(),
-                total: self.fetch_one::<PgTotal>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap().total as u64,
+                page: statement.query.page.unwrap() as u64,
+                per_page: statement.query.limit.unwrap() as u64,
+                total: self.fetch_one::<PgTotal>(Builder::new(&query).query(), statement.arguments.clone()).await.unwrap().total as u64,
                 items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
             }
         );

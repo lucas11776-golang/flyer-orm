@@ -1,7 +1,7 @@
 use std::env;
 
 use anyhow::Result;
-use flyer_orm::{Database, databases::postgres::Postgres};
+use flyer_orm::{Database, databases::{postgres::Postgres, sqlite::SQLite}};
 use sqlx::postgres::types::{PgPoint};
 use uuid::Uuid;
 
@@ -10,16 +10,28 @@ use uuid::Uuid;
 
 
 #[derive(Debug, sqlx::FromRow)]
+pub struct Project {
+    // pub id: String,
+    pub name: String
+}
+
+
+
+#[derive(Debug, sqlx::FromRow)]
 pub struct User {
-    pub id: Uuid,
+    // pub id: Uuid,
     pub email: String
 }
+
 
 pub struct Connection;
 
 impl Connection {
-    pub async fn db() -> Database<Postgres> {
-        return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
+    // pub async fn db() -> Database<Postgres> {
+    //     return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
+    // }
+    pub async fn db() -> Database<SQLite> {
+        return Database::<SQLite>::new("./database.sqlite").await;
     }
 }
 
@@ -33,9 +45,9 @@ impl Connection {
     let user = db.query("users")
         // .select(vec!["cities.*", "ST_AsText(location::text) AS location"])
         .select(vec!["*"])
-        .r#where("role", ">=", 2)
-        .and_where("role", "<=", 5)
-        .all::<User>()
+        // .r#where("role", ">=", 2)
+        // .and_where("role", "<=", 5)
+        .paginate::<User>(1, 2)
         .await
         .unwrap();
 
@@ -51,6 +63,15 @@ impl Connection {
     //     .unwrap();
 
     // println!("CITIES -> {:?}", cities);
+
+    // let projects = db.query("projects")
+    //     .select(vec!["name"])
+    //     .paginate::<Project>(1, 2)
+    //     .await
+    //     .unwrap();
+
+
+    // println!("PROJECT -> {:?}", projects);
 
     Ok(())
 }

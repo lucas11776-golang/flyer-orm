@@ -189,7 +189,7 @@ where
         return self.join_push(JoinType::CrossJoin , table, column, operator, column_table);
     }
 
-    pub fn limit(&mut self, limit: u64) -> &mut Self {
+    pub fn limit(&mut self, limit: i64) -> &mut Self {
         self.statement.query.limit = Some(limit);
 
         return self;
@@ -270,12 +270,21 @@ where
         return self.db.count(&self.statement).await.map(|t| t > 0);
     }
 
-    pub async fn paginate<O>(&'q mut self, limit: u64, page: u64) -> Result<Pagination<O>>
+    pub async fn paginate<O>(&'q mut self, limit: i64, page: i64) -> Result<Pagination<O>>
     where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized,
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized,
+        i64: Encode<'q, E::T> + Type<E::T>
     {
         self.statement.query.limit = Some(limit);
         self.statement.query.page = Some(page); // TODO: calc offset using offset
+
+        self.statement.arguments.add(limit).unwrap();
+        self.statement.arguments.add(if page > 1 {
+            (page - 1) * limit 
+        } else {
+            0
+        }).unwrap();
 
         return self.db.paginate::<O>(&self.statement).await;
     }

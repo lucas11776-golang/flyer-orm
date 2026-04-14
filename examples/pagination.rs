@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     let per_page = 2;
     
     let pagination = db.query("posts")
-        .paginate::<Post>(per_page, page)
+        .paginate::<Post>(10, 34)
         .await?;
 
     println!("Total posts: {}", pagination.total);

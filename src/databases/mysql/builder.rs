@@ -13,7 +13,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         return Self { statement: statement };
     }
 
-    fn query(&self) -> String {
+    fn query(&mut self) -> String {
         return format!(
             "{};",
             vec![self.select(), self.from(), self.join(), self.r#where(), self.group_by(), self.having(), self.order_by(), self.limit()]
@@ -25,7 +25,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         );
     }
 
-    fn insert(&self) -> String {
+    fn insert(&mut self) -> String {
         return format!(
             "INSERT INTO {} ({}) VALUES ({});",
             self.statement.table,
@@ -34,7 +34,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         );
     }
 
-    fn update(&self) -> String {
+    fn update(&mut self) -> String {
         return format!(
             "UPDATE {} SET {} {};",
             self.statement.table,
@@ -43,7 +43,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         );
     }
 
-    fn delete(&self) -> String {
+    fn delete(&mut self) -> String {
         return String::from(
             format!(
                 "DELETE FROM {} {};",

@@ -7,10 +7,10 @@ pub mod logic;
 
 pub(crate) trait QueryBuilder<'q> {
     fn new(statement: &'q SqlQuery) -> Self where Self: Sized;
-    fn query(&self) -> String;
-    fn insert(&self) -> String;
-    fn update(&self) -> String;
-    fn delete(&self) -> String;
+    fn query(&mut self) -> String;
+    fn insert(&mut self) -> String;
+    fn update(&mut self) -> String;
+    fn delete(&mut self) -> String;
 }
 
 pub trait QueryResult {

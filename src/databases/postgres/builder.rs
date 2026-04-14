@@ -6,14 +6,18 @@ use crate::query::logic::{JoinType, SqlQuery};
 #[derive(Debug)]
 pub(crate) struct Builder<'q> {
     statement: &'q SqlQuery,
+    position: i32,
 }
 
 impl <'q>QueryBuilder<'q> for Builder<'q> {
     fn new(statement: &'q SqlQuery) -> Self where Self: Sized {
-        return Self { statement: statement };
+        return Self {
+            statement: statement,
+            position: 1,
+        };
     }
 
-    fn query(&self) -> String {
+    fn query(&mut self) -> String {
         return format!(
             "{};",
             vec![self.select(), self.from(), self.join(), self.r#where(), self.group_by(), self.having(), self.order_by(), self.limit()]
@@ -25,25 +29,31 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         );
     }
 
-    fn insert(&self) -> String {
+    fn insert(&mut self) -> String {
         return format!(
             "INSERT INTO {} ({}) VALUES ({});",
             self.statement.table,
             self.statement.columns.clone().join(", "),
-            std::iter::repeat("?").take(self.statement.columns.len()).collect::<Vec<_>>().join(", ")
+            std::iter::repeat("?")
+                .take(self.statement.columns.len())
+                .collect::<Vec<_>>()
+                .iter()
+                .map(|t| self.position())
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     }
 
-    fn update(&self) -> String {
+    fn update(&mut self) -> String {
         return format!(
             "UPDATE {} SET {} {};",
             self.statement.table,
-            self.statement.columns.iter().map(|c| format!("{} = ?", c)).collect::<Vec<_>>().join(" "),
+            self.statement.columns.iter().map(|c| format!("{} = {}", self.position(), c)).collect::<Vec<_>>().join(" "),
             self.r#where()
         );
     }
 
-    fn delete(&self) -> String {
+    fn delete(&mut self) -> String {
         return String::from(
             format!(
                 "DELETE FROM {} {};",
@@ -55,6 +65,13 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
 }
 
 impl <'q>Builder<'q> {
+
+    fn position(&mut self) -> String {
+        let current = self.position;
+        self.position += 1;
+        return String::from(format!("${}", current));
+    }
+
     fn select(&self) -> String {
         if self.statement.select.is_empty() {
             return format!("SELECT *");
@@ -85,7 +102,7 @@ impl <'q>Builder<'q> {
     }
 
     // TODO: refactor
-    fn r#where(&self) -> String {
+    fn r#where(&mut self) -> String {
         if self.statement.where_queries.len() == 0 {
             return String::from("");
         }
@@ -100,8 +117,8 @@ impl <'q>Builder<'q> {
                         match &clause.group {
                             Some(_group) => String::from(""), // TODO: implement will need Where to hold Encode/Value for order.
                             None => match clause.operator.clone().unwrap().to_ascii_lowercase().as_str() {
-                                "like" => format!("{} LIKE '%' || ? || '%'", clause.column.clone().unwrap()),
-                                _ => format!("{} {} ?",  clause.column.clone().unwrap(), clause.operator.clone().unwrap()),
+                                "like" => format!("{} LIKE '%' || {} || '%'", clause.column.clone().unwrap(), self.position()),
+                                _ => format!("{} {} {}",  clause.column.clone().unwrap(), clause.operator.clone().unwrap(), self.position()),
                             }
                         }
                     ).trim()
@@ -119,11 +136,11 @@ impl <'q>Builder<'q> {
             .unwrap();
     }
 
-    fn having(&self) -> String {
+    fn having(&mut self) -> String {
         return self.statement
             .having
             .clone()
-            .map(|t| format!("{} {} ?", t.column, t.operator))
+            .map(|t| format!("{} {} {}", t.column, t.operator, self.position()))
             .or(Some(String::new()))
             .unwrap();
     }

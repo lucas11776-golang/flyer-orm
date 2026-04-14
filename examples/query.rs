@@ -6,23 +6,28 @@ use flyer_orm::{
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct User {
-    pub uuid: String,
+pub struct Product {
+    pub id: u64,
     pub created_at: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub email: String,
-    pub password: String,
+    pub name: String,
+    pub price: f32,
 }
 
-const USERS_TABLE_SCHEME: &'static str = "CREATE TABLE users (
- `uuid` VARCHAR(65535) PRIMARY KEY NOT NULL UNIQUE,
+const USERS_TABLE_SCHEME: &'static str = "
+CREATE TABLE products (
+ `id` INTEGER AUTO_INCREMENT PRIMARY KEY NOT NULL UNIQUE,
  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- `first_name` VARCHAR(65535),
- `last_name` VARCHAR(65535),
- `email` VARCHAR(65535) NOT NULL,
- `password` VARCHAR(65535) NOT NULL
-)";
+ `name` VARCHAR(65535) NOT NULL,
+ `price` FLOAT NOT NULL
+);
+
+INSERT INTO products (id, name, price)
+VALUES
+    (1, 'Bread', 20),
+    (2, 'Milk', 25),
+    (3, 'Sugar', 45),
+    (4, 'Eggs', 65);
+";
 
 pub struct Connection;
 
@@ -52,18 +57,15 @@ async fn main() -> Result<()> {
         panic!("Error: {:?}", err)
     }
 
-    let user = db.query("users")
-        .insert_as::<User>(vec!["uuid", "first_name", "last_name", "email", "password"])
-        .bind(uuid::Uuid::new_v4().to_string())
-        .bind("Jeo")
-        .bind("doe")
-        .bind("jeo@doe.com")
-        .bind("test@123")
-        .execute()
+    let products_range_r10_to_r30 = db.query("products")
+        .r#where("price", ">=", 20)
+        .and_where("price", "=<", 40)
+        .all::<Product>()
         .await
         .unwrap();
 
-    println!("User: {:?}", user);
+
+    println!("User: {:?}", products_range_r10_to_r30);
 
     return Ok(());
 }

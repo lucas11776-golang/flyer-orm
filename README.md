@@ -82,9 +82,17 @@ pub struct User {
     pub email: String,
 }
 
+pub struct Connection;
+
+impl Connection {
+    pub async fn db() -> Database<SQLite> {
+        return Database::<SQLite>::new(":memory:").await;
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let db = Database::<SQLite>::new(":memory:").await;
+    let db = Connection::db().await;
 
     // Fetch users with filters
     let users = db.query("users")
@@ -212,12 +220,16 @@ async fn safe_operation(db: &Database<SQLite>) {
 
 ### Raw SQL Execution
 
-For complex queries or migrations, you can execute raw SQL directly.
+For complex queries or migrations, you can execute raw SQL directly. The `execute` method returns a `QueryResult` which provides information about the operation.
 
 ```rust
+use flyer_orm::query::QueryResult;
+
 async fn run_migrations(db: &Database<SQLite>) {
     let schema = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)";
-    db.execute(schema).await.unwrap();
+    let result = db.execute(schema).await.unwrap();
+    
+    println!("Rows affected: {}", result.rows_affected());
 }
 
 async fn raw_query(db: &Database<SQLite>) {
@@ -228,21 +240,30 @@ async fn raw_query(db: &Database<SQLite>) {
 }
 ```
 
-### Connection Patter
+### Connection Pattern
 
-For complex queries or migrations, you can execute raw SQL directly.
+The recommended pattern for managing your database instance is to use a `Connection` struct. This makes it easy to switch between different database backends (MySQL, Postgres, SQLite) by simply changing the implementation of the `db()` function.
 
 ```rust
-async fn run_migrations(db: &Database<SQLite>) {
-    let schema = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)";
-    db.execute(schema).await.unwrap();
-}
+use flyer_orm::{Database, databases::{mysql::MySQL, postgres::Postgres, sqlite::SQLite}};
 
-async fn raw_query(db: &Database<SQLite>) {
-    let users: Vec<User> = db.query("users")
-        .query_all::<User, String>("SELECT * FROM users WHERE email = ?", vec!["test@test.com".to_string()])
-        .await
-        .unwrap();
+pub struct Connection;
+
+impl Connection {
+    // SQLite Implementation
+    pub async fn db() -> Database<SQLite> {
+        return Database::<SQLite>::new(":memory:").await;
+    }
+
+    // Postgres Implementation
+    // pub async fn db() -> Database<Postgres> {
+    //     return Database::<Postgres>::new("postgresql://user:pass@127.0.0.1:5432/db").await;
+    // }
+
+    // MySQL Implementation
+    // pub async fn db() -> Database<MySQL> {
+    //     return Database::<MySQL>::new("mysql://user:pass@127.0.0.1:3306/db").await;
+    // }
 }
 ```
 

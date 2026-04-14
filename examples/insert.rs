@@ -1,3 +1,5 @@
+use std::env;
+
 use anyhow::Result;
 use flyer_orm::{
     Database,
@@ -34,12 +36,12 @@ impl Connection {
 
     // // TODO: Using Postgres
     // pub async fn db() -> Database<Postgres> {
-    //     return Database::<Postgres>::new("postgresql://user:@127.0.0.1:8080/db?").await;
+    //     return Database::<Postgres>::new(&env::var("DATABASE_URL").unwrap()).await;
     // }
 
     // // TODO: Using MySQL
     // pub async fn db() -> Database<MySQL> {
-    //     return Database::<MySQL>::new("mysql://user:@127.0.0.1:8080/db?").await;
+    //     return Database::<MySQL>::new(&env::var("DATABASE_URL").unwrap()).await;
     // }
 }
 

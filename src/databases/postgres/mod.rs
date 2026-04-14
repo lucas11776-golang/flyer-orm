@@ -2,16 +2,21 @@ mod builder;
 pub mod query;
 
 use anyhow::Result;
-use sqlx::{FromRow, PgPool, Pool, Postgres as DBPostgres};
+use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult};
 
 use crate::{
     Executor,
-    databases::postgres::query::PostgresQueryResult,
-    query::{Pagination, Statement}
+    databases::postgres::{builder::Builder, query::PostgresQueryResult},
+    query::{Pagination, QueryBuilder, QueryResult, Statement, logic::Where}
 };
 
+#[derive(sqlx::FromRow)]
+struct PgTotal {
+    total: i64
+}
+
 pub struct Postgres {
-    db: Pool<DBPostgres>,
+    db: Pool<Database>,
 }
 
 impl Postgres {
@@ -22,76 +27,168 @@ impl Postgres {
     }
 }
 
+impl Postgres {
+    async fn fetch_one<'q, O>(&'q self, sql: String, arguments: <<Postgres as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<O>
+    where
+        O: for<'r> sqlx::FromRow<'r, <<Postgres as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(
+            sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
+                .fetch_one(&self.db)
+                .await
+                .unwrap()
+        );
+    }
+
+    async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<Postgres as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::FromRow<'r, <<Postgres as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return Ok(
+            sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
+                .fetch_all(&self.db)
+                .await
+                .unwrap()
+        );
+    }
+
+    async fn execute_query<'q>(&'q self, sql: String, arguments: <<Postgres as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult> {
+        let result = sqlx::query_with::<<Postgres as Executor>::T, _>(&sql, arguments)
+            .execute(&self.db)
+            .await
+            .unwrap();
+
+        let any = AnyQueryResult::from(result);
+
+        return Ok(PostgresQueryResult {
+            affected: any.rows_affected(),
+            id: any.last_insert_id().unwrap_or(0) as u64,
+        });
+    }
+}
+
 impl Executor for Postgres {
-    type T = DBPostgres;
+    type T = Database;
 
     async fn new(url: &str) -> Self where Self: Sized {
-        todo!()
+        return Self {
+            db: sqlx::postgres::PgPool::connect(url).await.unwrap(),
+        };
     }
-
+    
     fn db<'q>(&'q self) -> &'q Pool<Self::T> {
-        todo!()
+        return &self.db;
     }
-
+    
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        todo!()
+        return Ok(Builder::new(&statement.query).query());
     }
 
-    #[allow(refining_impl_trait)]
-    async fn execute<'q>(&self, sql: &'q str) -> Result<PostgresQueryResult> {
-        todo!();
+    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
+        return self.execute_query(String::from(sql), Default::default()).await;
     }
-
+    
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        todo!()
+        self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
+
+        return Ok(());
     }
     
     async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        todo!()
+        let result = self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
+
+        let mut statement = Statement::<Self::T>::new(&statement.query.table);
+
+        statement.query.where_queries.push(Where {
+            column: Some("rowid".to_string()),
+            operator: Some("=".to_string()),
+            condition: None,
+            group: None
+        });
+
+        statement.arguments.add(result.last_inserted() as i64).unwrap();
+
+        return Ok(self.first(&statement).await.unwrap());
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        todo!()
+        self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone()).await.unwrap();
+        return Ok(());
     }
     
     async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
-        return Ok(0);
+        let query = {
+            let mut query = statement.query.clone();
+            query.select = vec!["COUNT(*) as total".to_string()];
+            query
+        };
+
+        return self.fetch_one::<PgTotal>(Builder::new(&query).query(), statement.arguments.clone())
+            .await
+            .map(|t| t.total as u64);
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        todo!()
+        self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone()).await.unwrap();
+        return Ok(());
     }
-
+    
     async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
     where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
-        todo!()
-    }
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
 
+        for arg in args { arguments.add(arg).unwrap(); }
+
+        return self.fetch_all(String::from(sql), arguments).await;
+    }
+    
     async fn query_one<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<O>
     where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
-        todo!()
-    }
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
 
-    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
-        todo!()
-    }
+        for arg in args { arguments.add(arg).unwrap(); }
 
+        return self.fetch_one(String::from(sql), arguments).await;
+    }
+    
     async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
-        todo!()
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return self.fetch_one(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
+    }
+    
+    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
     }
 
     async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
-        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
-        todo!()
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let mut query = statement.query.clone();
+
+        query.select = vec!["COUNT(*) as total".to_string()];
+        query.limit = None;
+        query.page = None;
+
+        return Ok(
+            Pagination {
+                page: statement.query.page.unwrap(),
+                per_page: statement.query.limit.unwrap(),
+                total: self.fetch_one::<PgTotal>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap().total as u64,
+                items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
+            }
+        );
     }
 }

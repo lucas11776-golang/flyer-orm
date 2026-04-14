@@ -39,11 +39,6 @@ pub struct Statement<'q, DB: sqlx::Database> {
     pub(crate) arguments: DB::Arguments<'q>, 
 }
 
-#[derive(Debug, sqlx::FromRow)]
-pub(crate) struct Total {
-    pub total: u64
-}
-
 impl <'q, DB>Statement<'q, DB>
 where
     DB: sqlx::Database

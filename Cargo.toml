@@ -1,6 +1,6 @@
 [package]
 name = "flyer-orm"
-version = "0.0.6"
+version = "0.0.7"
 edition = "2024"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
@@ -18,4 +18,6 @@ sqlx = { version = "0.8.6",features = ["any", "sqlite", "mysql", "postgres", "ma
 async-trait = "0.1.89"
 async-std = "1.13.2"
 uuid = { version = "1.21.0", features = ["v4"] }
+dotenv = "0.15.0"
+geo = "0.32.0"
 

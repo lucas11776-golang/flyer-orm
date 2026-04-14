@@ -4,11 +4,17 @@ use sqlx::{Arguments, Pool, Sqlite};
 use crate::{
     Executor,
     databases::sqlite::{builder::Builder, query::SQLiteQueryResult},
-    query::{Pagination, QueryBuilder, QueryResult, Statement, Total, logic::Where}
+    query::{Pagination, QueryBuilder, QueryResult, Statement, logic::Where}
 };
 
 pub mod query;
 mod builder;
+
+
+#[derive(Debug, sqlx::FromRow)]
+pub(crate) struct SQLiteTotal {
+    pub total: u64
+}
 
 #[derive(Debug)]
 pub struct SQLite {
@@ -112,7 +118,7 @@ impl Executor for SQLite {
             query
         };
 
-        return self.fetch_one::<Total>(Builder::new(&query).query(), statement.arguments.clone())
+        return self.fetch_one::<SQLiteTotal>(Builder::new(&query).query(), statement.arguments.clone())
             .await
             .map(|t| t.total);
     }
@@ -172,7 +178,7 @@ impl Executor for SQLite {
             Pagination {
                 page: statement.query.page.unwrap(),
                 per_page: statement.query.limit.unwrap(),
-                total: self.fetch_one::<Total>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap().total,
+                total: self.fetch_one::<SQLiteTotal>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap().total,
                 items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
             }
         );

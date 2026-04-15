@@ -11,7 +11,7 @@ pub trait Executor {
 
     fn db<'q>(&'q self) -> &'q Pool<Self::T>; 
 
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String>;
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String;
 
     async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult>;
 

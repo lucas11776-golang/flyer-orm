@@ -31,7 +31,7 @@ impl Executor for MySQL {
         todo!()
     }
 
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String {
         todo!()
     }
 

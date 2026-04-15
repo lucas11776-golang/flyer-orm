@@ -32,38 +32,35 @@ impl Postgres {
     where
         O: for<'r> sqlx::FromRow<'r, <<Postgres as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(
-            sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
-                .fetch_one(&self.db)
-                .await
-                .unwrap()
-        );
+        return sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| e.into());
     }
 
     async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<Postgres as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <<Postgres as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(
-            sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
-                .fetch_all(&self.db)
-                .await
-                .unwrap()
-        );
+        return sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| e.into())
+        ;
     }
 
     async fn execute_query<'q>(&'q self, sql: String, arguments: <<Postgres as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult> {
-        let result = sqlx::query_with::<<Postgres as Executor>::T, _>(&sql, arguments)
+        return sqlx::query_with::<<Postgres as Executor>::T, _>(&sql, arguments)
             .execute(&self.db)
             .await
-            .unwrap();
-
-        let any = AnyQueryResult::from(result);
-
-        return Ok(PostgresQueryResult {
-            affected: any.rows_affected(),
-            id: any.last_insert_id().unwrap_or(0) as u64,
-        });
+            .map_err(|e| e.into())
+            .map(|result| {
+                let any = AnyQueryResult::from(result);
+                return PostgresQueryResult {
+                    affected: any.rows_affected(),
+                    id: any.last_insert_id().unwrap_or(0) as u64,
+                };
+            });
     }
 }
 
@@ -80,18 +77,19 @@ impl Executor for Postgres {
         return &self.db;
     }
     
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        return Ok(Builder::new(&statement.query).query());
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String {
+        return Builder::new(&statement.query).query();
     }
 
     async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
-        return self.execute_query(String::from(sql), Default::default()).await;
+        return self.execute_query(String::from(sql), Default::default())
+            .await;
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
-
-        return Ok(());
+        return self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone())
+            .await
+            .map(|_t| ());
     }
     
     async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
@@ -115,8 +113,9 @@ impl Executor for Postgres {
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone()).await.unwrap();
-        return Ok(());
+        return self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone())
+            .await
+            .map(|_| ());
     }
     
     async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
@@ -132,8 +131,9 @@ impl Executor for Postgres {
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone()).await.unwrap();
-        return Ok(());
+        return self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone())
+            .await
+            .map(|_| ());
     }
     
     async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
@@ -162,14 +162,14 @@ impl Executor for Postgres {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return self.fetch_one(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
+        return self.fetch_one(self.to_sql(statement), statement.arguments.clone()).await;
     }
     
     async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
+        return self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await;
     }
 
     async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
@@ -187,7 +187,7 @@ impl Executor for Postgres {
                 page: statement.query.page.unwrap() as u64,
                 per_page: statement.query.limit.unwrap() as u64,
                 total: self.fetch_one::<PgTotal>(Builder::new(&query).query(), statement.arguments.clone()).await.unwrap().total as u64,
-                items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
+                items: self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await.unwrap(),
             }
         );
     }

@@ -289,7 +289,7 @@ where
         return self.db.paginate::<O>(&self.statement).await;
     }
 
-    pub fn to_sql(&'q mut self) -> Result<String> {
+    pub fn to_sql(&'q mut self) -> String {
         return self.db.to_sql(&self.statement);
     }
 }

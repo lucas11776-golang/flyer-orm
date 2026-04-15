@@ -22,40 +22,37 @@ pub struct SQLite {
 }
 
 impl SQLite {
-    async fn fetch_one<'q, O>(&'q self, sql: String, arguments: <<SQLite as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<O>
+    async fn fetch_one<'q, O>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<O>
     where
-        O: for<'r> sqlx::FromRow<'r, <<SQLite as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(
-            sqlx::query_as_with::<<SQLite as Executor>::T, O, _>(&sql, arguments)
-                .fetch_one(&self.db)
-                .await
-                .unwrap()
-        );
+        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(&sql, arguments)
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| e.into());
     }
 
-    async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<SQLite as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
     where
-        O: for<'r> sqlx::FromRow<'r, <<SQLite as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return Ok(
-            sqlx::query_as_with::<<SQLite as Executor>::T, O, _>(&sql, arguments)
-                .fetch_all(&self.db)
-                .await
-                .unwrap()
-        );
+        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(&sql, arguments)
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| e.into());
     }
 
-    async fn execute_query<'q>(&'q self, sql: String, arguments: <<SQLite as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<SQLiteQueryResult> {
-        let result = sqlx::query_with::<<SQLite as Executor>::T, _>(&sql, arguments)
+    async fn execute_query<'q>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<SQLiteQueryResult> {
+        return sqlx::query_with::<<Self as Executor>::T, _>(&sql, arguments)
             .execute(&self.db)
             .await
-            .unwrap();
-
-        return Ok(SQLiteQueryResult {
-            affected: result.rows_affected(),
-            id: result.last_insert_rowid() as u64,
-        });
+            .map_err(|e| e.into())
+            .map(|result| {
+                return SQLiteQueryResult {
+                    affected: result.rows_affected(),
+                    id: result.last_insert_rowid() as u64,
+                };
+            });
     }
 }
 
@@ -72,8 +69,8 @@ impl Executor for SQLite {
         return &self.db;
     }
     
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<String> {
-        return Ok(Builder::new(&statement.query).query());
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String {
+        return Builder::new(&statement.query).query();
     }
 
     async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
@@ -81,9 +78,9 @@ impl Executor for SQLite {
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
-
-        return Ok(());
+        return self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone())
+            .await
+            .map(|_| ());
     }
     
     async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
@@ -107,8 +104,9 @@ impl Executor for SQLite {
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone()).await.unwrap();
-        return Ok(());
+        return self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone())
+            .await
+            .map(|_| ());
     }
     
     async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
@@ -124,8 +122,9 @@ impl Executor for SQLite {
     }
     
     async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
-        self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone()).await.unwrap();
-        return Ok(());
+        return self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone())
+            .await
+            .map(|_| ());
     }
     
     async fn query_all<'q, O, T: 'q + sqlx::Encode<'q, Self::T> + sqlx::Type<Self::T>>(&self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
@@ -154,14 +153,14 @@ impl Executor for SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return self.fetch_one(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
+        return self.fetch_one(self.to_sql(statement), statement.arguments.clone()).await;
     }
     
     async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await;
+        return self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await;
     }
 
     async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
@@ -179,7 +178,7 @@ impl Executor for SQLite {
                 page: statement.query.page.unwrap() as u64,
                 per_page: statement.query.limit.unwrap() as u64,
                 total: self.fetch_one::<SQLiteTotal>(Builder::new(&query).query(), statement.arguments.clone()).await.unwrap().total as u64,
-                items: self.fetch_all::<O>(self.to_sql(statement).unwrap(), statement.arguments.clone()).await.unwrap(),
+                items: self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await.unwrap(),
             }
         );
     }

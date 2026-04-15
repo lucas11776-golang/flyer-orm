@@ -70,7 +70,7 @@ impl <'t, T: sqlx::Database>Transaction<'t, T> {
     }
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug, Default)]
 pub struct Pagination<Entity> {
     pub total: u64,
     pub page: u64,

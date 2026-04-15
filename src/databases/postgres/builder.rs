@@ -160,12 +160,10 @@ impl <'q>Builder<'q> {
     }
 
     fn limit(&mut self) -> String {
-
-        return String::new();
-        // return self.statement.limit.map(|_limit| {
-        //     return format!("LIMIT {}{}", self.position(), self.statement.page.map(|_t| {
-        //         return format!(" OFFSET {}", self.position());
-        //     }).unwrap_or(String::new()));
-        // }).unwrap_or(String::new());
+        return self.statement.limit.map(|_limit| {
+            return format!("LIMIT {}{}", self.position(), self.statement.page.map(|_t| {
+                return format!(" OFFSET {}", self.position());
+            }).unwrap_or(String::new()));
+        }).unwrap_or(String::new());
     }    
 }

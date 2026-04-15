@@ -2,8 +2,6 @@ use std::env;
 
 use anyhow::Result;
 use flyer_orm::{Database, databases::{postgres::Postgres, sqlite::SQLite}};
-use sqlx::postgres::types::{PgPoint};
-use uuid::Uuid;
 
 
 // use sqlx::postgres::types::
@@ -27,12 +25,12 @@ pub struct User {
 pub struct Connection;
 
 impl Connection {
-    // pub async fn db() -> Database<Postgres> {
-    //     return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
-    // }
-    pub async fn db() -> Database<SQLite> {
-        return Database::<SQLite>::new("./database.sqlite").await;
+    pub async fn db() -> Database<Postgres> {
+        return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
     }
+    // pub async fn db() -> Database<SQLite> {
+    //     return Database::<SQLite>::new("./database.sqlite").await;
+    // }
 }
 
 #[tokio::main]
@@ -47,22 +45,13 @@ impl Connection {
         .select(vec!["*"])
         // .r#where("role", ">=", 2)
         // .and_where("role", "<=", 5)
-        .paginate::<User>(1, 2)
+        .r#where("email", "LIKE", "gmail.com")
+        .paginate::<User>(1, 1)
         .await
         .unwrap();
 
     println!("SQL -> {:?}", user);
 
-
-    // let cities = db.query("users")
-    //     // .select(vec!["cities.*", "ST_AsText(location::text) AS location"])
-    //     .select(vec!["cities.*", "location::point as location"])
-    //     .r#where("role", ">=", 2)
-    //     .all::<User>()
-    //     .await
-    //     .unwrap();
-
-    // println!("CITIES -> {:?}", cities);
 
     // let projects = db.query("projects")
     //     .select(vec!["name"])

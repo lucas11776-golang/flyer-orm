@@ -1,13 +1,9 @@
-use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
+use std::marker::PhantomData;
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use sqlx::{Arguments, Encode, FromRow, types::Type};
 
-use crate::{
-    executor::Executor,
-    query::{Order, Pagination, QueryResult, Statement, Transaction, update::Update}
-};
-
+use crate::{executor::Executor, query::Statement};
 
 pub struct InsertAs<'q, E: Executor, O> {
     db: &'q E,

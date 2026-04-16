@@ -1,15 +1,17 @@
 use std::vec;
 
-use crate::query::{QueryBuilder};
-use crate::query::logic::{JoinType, SqlQuery};
+use crate::{
+    query::{QueryBuilder},
+    types::{JoinType, SQL}
+};
 
 #[derive(Debug)]
 pub(crate) struct Builder<'q> {
-    statement: &'q SqlQuery,
+    statement: &'q SQL,
 }
 
 impl <'q>QueryBuilder<'q> for Builder<'q> {
-    fn new(statement: &'q SqlQuery) -> Self where Self: Sized {
+    fn new(statement: &'q SQL) -> Self where Self: Sized {
         return Self { statement: statement };
     }
 

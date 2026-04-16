@@ -4,7 +4,8 @@ use sqlx::{Arguments, Pool, Sqlite};
 use crate::{
     Executor,
     databases::sqlite::{builder::Builder, query::SQLiteQueryResult},
-    query::{Pagination, QueryBuilder, QueryResult, Statement, logic::Where}
+    query::{Pagination, QueryBuilder, QueryResult, Statement},
+    types::Where
 };
 
 pub mod query;
@@ -171,11 +172,11 @@ impl Executor for SQLite {
 
         query.select = vec!["COUNT(*) as total".to_string()];
         query.limit = None;
-        query.page = None;
+        query.offset = None;
 
         return Ok(
             Pagination {
-                page: statement.query.page.unwrap() as u64,
+                page: statement.query.offset.unwrap() as u64,
                 per_page: statement.query.limit.unwrap() as u64,
                 total: self.fetch_one::<SQLiteTotal>(Builder::new(&query).query(), statement.arguments.clone()).await.unwrap().total as u64,
                 items: self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await.unwrap(),

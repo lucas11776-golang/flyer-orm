@@ -83,7 +83,7 @@ pub(crate) struct Having {
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct SqlQuery {
+pub(crate) struct SQL {
     pub table: String,
     pub select: Vec<String>,
     pub join: Vec<Join>,
@@ -92,11 +92,11 @@ pub(crate) struct SqlQuery {
     pub having: Option<Having>,
     pub order_by: Option<Vec<Order>>,
     pub limit: Option<i64>,
-    pub page: Option<i64>, // TODO: must use `offset` or `page` must decide...
+    pub offset: Option<i64>,
     pub columns: Vec<String>,
 }
 
-impl SqlQuery {
+impl SQL {
     pub fn new(table: &str) -> Self {
         return Self {
             table: table.to_string(),
@@ -107,7 +107,7 @@ impl SqlQuery {
             group_by: None,
             order_by: None,
             limit: None,
-            page: None,
+            offset: None,
             columns: Vec::new(),
         }
     }

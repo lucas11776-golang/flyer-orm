@@ -1,12 +1,14 @@
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::query::logic::SqlQuery;
+use crate::types::SQL;
 
-pub mod logic;
+pub mod update;
+pub mod insert;
+pub mod insert_as;
 
 pub(crate) trait QueryBuilder<'q> {
-    fn new(statement: &'q SqlQuery) -> Self where Self: Sized;
+    fn new(statement: &'q SQL) -> Self where Self: Sized;
     fn query(&mut self) -> String;
     fn insert(&mut self) -> String;
     fn update(&mut self) -> String;
@@ -35,7 +37,7 @@ impl ToString for Order {
 
 #[derive(Clone, Debug)]
 pub struct Statement<'q, DB: sqlx::Database> {
-    pub(crate) query: SqlQuery,
+    pub(crate) query: SQL,
     pub(crate) arguments: DB::Arguments<'q>, 
 }
 
@@ -45,7 +47,7 @@ where
 {
     pub(crate) fn new(table: &str) -> Self {
         return Self {
-            query: SqlQuery::new(table),
+            query: SQL::new(table),
             arguments: Default::default(),
         }
     }

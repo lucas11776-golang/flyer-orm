@@ -5,12 +5,14 @@ use sqlx::{Arguments, Encode, FromRow, types::Type};
 
 use crate::{
     executor::Executor,
-    query::{Order, Pagination, QueryResult, Statement, Transaction, logic::{self, Condition, Join, JoinType, Where}}
+    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, update::Update},
+    types::{Condition, Join, JoinType, Where}
 };
 
 pub mod databases;
 pub mod query;
 pub mod executor;
+pub mod types;
 
 pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
 
@@ -142,7 +144,7 @@ where
 
     pub fn order_by(&mut self, column: &str, order: Order) -> &mut Self {
         if self.statement.query.order_by.is_none() {
-            self.statement.query.order_by = Some(vec![logic::Order {
+            self.statement.query.order_by = Some(vec![types::Order {
                 column: column.to_string(),
                 order: order
             }]);
@@ -150,7 +152,7 @@ where
             return self;
         }
 
-        self.statement.query.order_by.as_mut().unwrap().push(logic::Order {
+        self.statement.query.order_by.as_mut().unwrap().push(types::Order {
             column: column.to_string(),
             order: order
         });
@@ -277,7 +279,7 @@ where
         i64: Encode<'q, E::T> + Type<E::T>
     {
         self.statement.query.limit = Some(limit);
-        self.statement.query.page = Some(page); // TODO: calc offset using offset
+        self.statement.query.offset = Some(page); // TODO: calc offset using offset
 
         self.statement.arguments.add(limit).unwrap();
         self.statement.arguments.add(if page > 1 {
@@ -291,171 +293,5 @@ where
 
     pub fn to_sql(&'q mut self) -> String {
         return self.db.to_sql(&self.statement);
-    }
-}
-
-pub struct InsertAs<'q, E: Executor, O> {
-    db: &'q E,
-    statement: &'q mut Statement<'q, E::T>,
-    _marker: PhantomData<E>,
-    _type: PhantomData<O>
-}
-
-impl <'q, E, O>InsertAs<'q, E, O>
-where
-    E: Executor,
-    O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-{
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
-        return Self {
-            db: db,
-            statement: statement,
-            _marker: PhantomData,
-            _type: PhantomData
-        }
-    }
-
-    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
-        self.statement.arguments.add(value).unwrap();
-
-        return self;
-    }
-
-    pub async fn execute(&'q mut self) -> Result<O> {
-        return self.db.insert_as::<O>(self.statement).await;
-    }
-}
-
-pub struct Insert<'q, E: Executor> {
-    db: &'q E,
-    statement: &'q mut Statement<'q, E::T>,
-    _marker: PhantomData<E>
-}
-
-impl <'q, E>Insert<'q, E>
-where
-    E: Executor
-{
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
-        return Self {
-            db: db,
-            statement: statement,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
-        self.statement.arguments.add(value).unwrap();
-
-        return self;
-    }
-
-    pub async fn execute(&'q mut self) -> Result<()> {
-        return self.db.insert(self.statement).await;
-    }
-}
-
-pub struct Update<'q, E: Executor, T: 'q + Encode<'q, E::T> + Type<E::T>> {
-    db: &'q E,
-    statement: &'q mut Statement<'q, E::T>,
-    insert_arguments: Vec<T>,
-    where_arguments: Vec<T>,
-    _marker: PhantomData<E>
-}
-
-impl <'q, E, T: 'q + Encode<'q, E::T> + Type<E::T>>Update<'q, E, T>
-where
-    E: Executor
-{
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
-        return Self {
-            db: db,
-            statement: statement,
-            insert_arguments: Default::default(),
-            where_arguments: Default::default(),
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn bind(&'q mut self, value: T) -> &'q mut Self {
-        self.insert_arguments.push(value);
-        return self;
-    }
-
-    pub fn r#where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
-        if self.statement.query.where_queries.len() != 0 {
-            return self.and_where(column, operator, value);
-        }
-
-        self.statement.query.where_queries.push(Where {
-            column: Some(column.to_string()),
-            operator: Some(operator.to_string()),
-            condition: None,
-            group: None
-        });
-
-        self.where_arguments.push(value);
-        
-        return self;
-    }
-
-    pub fn and_where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
-        if self.statement.query.where_queries.len() == 0 {
-            return self.r#where(column, operator, value);
-        }
-
-        self.statement.query.where_queries.push(Where {
-            column: Some(column.to_string()),
-            operator: Some(operator.to_string()),
-            condition: Some(Condition::AND),
-            group: None
-        });
-
-        self.where_arguments.push(value);
-        
-        return self;
-    }
-
-    pub fn or_where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
-        if self.statement.query.where_queries.len() == 0 {
-            return self.r#where(column, operator, value);
-        }
-
-        self.statement.query.where_queries.push(Where {
-            column: Some(column.to_string()),
-            operator: Some(operator.to_string()),
-            condition: Some(Condition::OR),
-            group: None
-        });
-
-        self.where_arguments.push(value);
-
-        return self;
-    }
-
-    // pub fn where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
-    //     return self;
-    // }
-
-    // pub fn and_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
-    //     return self;
-    // }
-
-    // pub fn or_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
-    //     return self;
-    // }
-
-    pub async fn execute(&'q mut self) -> Result<()> {
-        self.statement.arguments = Default::default();
-
-        for v in self.insert_arguments.iter() {
-            self.statement.arguments.add(v).unwrap();
-        }
-
-        for v in self.where_arguments.iter() {
-            self.statement.arguments.add(v).unwrap();
-        }
-        
-        return self.db.update(self.statement).await;
     }
 }

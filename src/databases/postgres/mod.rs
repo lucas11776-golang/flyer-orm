@@ -7,7 +7,8 @@ use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult};
 use crate::{
     Executor,
     databases::postgres::{builder::Builder, query::PostgresQueryResult},
-    query::{Pagination, QueryBuilder, QueryResult, Statement, logic::Where}
+    query::{Pagination, QueryBuilder, QueryResult, Statement},
+    types::Where
 };
 
 #[derive(sqlx::FromRow)]
@@ -180,11 +181,11 @@ impl Executor for Postgres {
 
         query.select = vec!["COUNT(*) as total".to_string()];
         query.limit = None;
-        query.page = None;
+        query.offset = None;
 
         return Ok(
             Pagination {
-                page: statement.query.page.unwrap() as u64,
+                page: statement.query.offset.unwrap() as u64,
                 per_page: statement.query.limit.unwrap() as u64,
                 total: self.fetch_one::<PgTotal>(Builder::new(&query).query(), statement.arguments.clone()).await.unwrap().total as u64,
                 items: self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await.unwrap(),

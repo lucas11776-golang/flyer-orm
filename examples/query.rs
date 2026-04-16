@@ -1,8 +1,5 @@
 use anyhow::Result;
-use flyer_orm::{
-    Database,
-    databases::{mysql::MySQL, postgres::Postgres, sqlite::SQLite}
-};
+use flyer_orm::{Database, databases::sqlite::SQLite};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -13,9 +10,12 @@ pub struct Product {
     pub price: f32,
 }
 
+
+    // id INTEGER PRIMARY KEY AUTOINCREMENT,
+
 const USERS_TABLE_SCHEME: &'static str = "
 CREATE TABLE products (
- `id` INTEGER AUTO_INCREMENT PRIMARY KEY NOT NULL UNIQUE,
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL UNIQUE,
  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  `name` VARCHAR(65535) NOT NULL,
  `price` FLOAT NOT NULL
@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
 
     let products_range_r10_to_r30 = db.query("products")
         .r#where("price", ">=", 20)
-        .and_where("price", "=<", 40)
+        .and_where("price", "<=", 40)
         .all::<Product>()
         .await
         .unwrap();

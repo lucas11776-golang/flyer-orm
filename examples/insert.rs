@@ -1,10 +1,5 @@
-use std::env;
-
 use anyhow::Result;
-use flyer_orm::{
-    Database,
-    databases::{mysql::MySQL, postgres::Postgres, sqlite::SQLite}
-};
+use flyer_orm::{Database, databases::{sqlite::SQLite}};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]

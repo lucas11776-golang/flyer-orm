@@ -35,9 +35,9 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         return format!(
             "INSERT INTO {} ({}) VALUES ({});",
             self.statement.table,
-            self.statement.columns.clone().join(", "),
+            self.statement.select.clone().join(", "),
             std::iter::repeat("?")
-                .take(self.statement.columns.len())
+                .take(self.statement.select.len())
                 .collect::<Vec<_>>()
                 .iter()
                 .map(|t| self.position())
@@ -50,7 +50,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         return format!(
             "UPDATE {} SET {} {};",
             self.statement.table,
-            self.statement.columns.iter().map(|c| format!("{} = {}", self.position(), c)).collect::<Vec<_>>().join(" "),
+            self.statement.select.iter().map(|c| format!("{} = {}", self.position(), c)).collect::<Vec<_>>().join(" "),
             self.r#where()
         );
     }

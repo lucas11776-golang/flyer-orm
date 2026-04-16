@@ -228,19 +228,19 @@ where
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        self.statement.query.columns = columns.iter().map(|c| c.to_string()).collect();
+        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
 
         return InsertAs::new(self.db, &mut self.statement);
     }
 
     pub fn insert(&'q mut self, columns: Vec<&str>) -> Insert<'q, E> {
-        self.statement.query.columns = columns.iter().map(|c| c.to_string()).collect();
+        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
 
         return Insert::new(&self.db, &mut self.statement);
     }
 
     pub fn update<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, columns: Vec<&str>) -> Update<'q, E, T> {
-        self.statement.query.columns = columns.iter().map(|c| c.to_string()).collect();
+        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
 
         return Update::new(&self.db, &mut self.statement);
     }

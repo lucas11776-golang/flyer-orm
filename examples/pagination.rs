@@ -1,8 +1,5 @@
 use anyhow::Result;
-use flyer_orm::{
-    Database,
-    databases::sqlite::SQLite
-};
+use flyer_orm::{Database, databases::sqlite::SQLite};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -13,7 +10,7 @@ pub struct Post {
 
 const SCHEMA: &'static str = "
 CREATE TABLE posts (
-    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     title VARCHAR(255) NOT NULL
 );
 
@@ -33,7 +30,7 @@ async fn main() -> Result<()> {
     let per_page = 2;
     
     let pagination = db.query("posts")
-        .paginate::<Post>(10, 34)
+        .paginate::<Post>(per_page, page)
         .await?;
 
     println!("Total posts: {}", pagination.total);

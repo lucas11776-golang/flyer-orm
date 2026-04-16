@@ -65,7 +65,6 @@ pub(crate) struct SQL {
     pub order_by: Option<Vec<Order>>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
-    pub columns: Vec<String>,
 }
 
 impl SQL {
@@ -80,7 +79,6 @@ impl SQL {
             order_by: None,
             limit: None,
             offset: None,
-            columns: Vec::new(),
         }
     }
 }

@@ -2,7 +2,7 @@
 use std::{marker::PhantomData, mem::take, str};
 
 use anyhow::{Result};
-use sqlx::{Arguments, Encode, IntoArguments, types::Type};
+use sqlx::{Arguments, Encode, types::Type};
 
 use crate::{
     executor::Executor,

@@ -40,7 +40,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
                 .take(self.statement.select.len())
                 .collect::<Vec<_>>()
                 .iter()
-                .map(|t| self.position())
+                .map(|_t| self.position())
                 .collect::<Vec<_>>()
                 .join(", ")
         );

@@ -11,7 +11,6 @@ use crate::{
 };
 
 
-
 pub struct Update<'q, E: Executor> {
     db: &'q E,
     statement: &'q mut Statement<E::T>,
@@ -63,7 +62,7 @@ where
             group: None
         });
 
-        self.insert_arguments.add(value).unwrap();
+        self.where_arguments.add(value).unwrap();
         
         return self;
     }
@@ -107,16 +106,14 @@ where
 
         self.statement.arguments.merge(take(&mut self.insert_arguments));
         self.statement.arguments.merge(take(&mut self.where_arguments));
-
-
-        // for v in self.insert_arguments.iter() {
-        //     self.statement.arguments.add(v).unwrap();
-        // }
-
-        // for v in self.where_arguments.iter() {
-        //     self.statement.arguments.add(v).unwrap();
-        // }
         
         return self.db.update(self.statement).await;
     }
 }
+
+
+// pub struct Bag<'q, DB: sqlx::Database, T: Encode<'q, DB> + Type<DB>> {
+//     values: Vec<T>,
+//     _marker: PhantomData<DB>,
+//     _lifetime: PhantomData<&'q ()>
+// }

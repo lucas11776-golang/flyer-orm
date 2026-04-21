@@ -1,6 +1,8 @@
 mod builder;
 pub mod query;
 
+use std::result;
+
 use anyhow::Result;
 use sqlx::{Arguments, AssertSqlSafe, PgPool, Pool, Postgres as Database, any::AnyQueryResult};
 
@@ -114,9 +116,22 @@ impl Executor for Postgres {
     }
     
     async fn update<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
-        return self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone())
+        let a= self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone())
             .await
-            .map(|_| ());
+            .map(|result| {
+
+                println!("RESULT -> {:?}", result.rows_affected());
+
+                return ()
+            });
+
+        // if let Ok(_) = a {
+        //     let a = self.execute_query(String::from("COMMIT;"), Default::default())
+        //         .await
+        //         .unwrap();
+        // }
+
+        return a;
     }
     
     async fn count<'q>(&self, statement: &'q Statement<Self::T>) -> Result<u64> {

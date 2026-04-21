@@ -275,7 +275,6 @@ where
     pub async fn paginate<O>(&'q mut self, limit: i64, page: i64) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized,
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized,
         i64: Encode<'q, E::T> + Type<E::T>
     {
         self.statement.query.limit = Some(limit);

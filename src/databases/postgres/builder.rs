@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::{
-    query::{QueryBuilder},
+    query::QueryBuilder,
     types::{JoinType, SQL}
 };
 

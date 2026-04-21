@@ -25,8 +25,8 @@ async fn main() -> Result<()> {
     // Perform an update
     db.query("users")
         .update(vec!["status"])
-        .bind("active")
         .r#where("name", "=", "John")
+        .bind("active")
         .execute()
         .await?;
 

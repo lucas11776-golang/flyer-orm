@@ -11,15 +11,6 @@ use crate::{
 };
 
 
-#[derive(Default)]
-pub struct Bag {}
-
-
-impl <'q, DB: sqlx::Database>IntoArguments<'q, DB> for Bag {
-    fn into_arguments(self) -> <DB as sqlx::Database>::Arguments<'q> {
-        todo!()
-    }
-}
 
 pub struct Update<'q, E: Executor, T: 'q + Encode<'q, E::T> + Type<E::T>> {
     db: &'q E,
@@ -43,12 +34,7 @@ where
         }
     }
 
-    pub fn bind(&'q mut self, value: T) -> &'q mut Self {
-        self.insert_arguments.push(value);
-        return self;
-    }
-
-    pub fn r#where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
+    pub fn r#where<W: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: W) -> &mut Self {
         if self.statement.query.where_queries.len() != 0 {
             return self.and_where(column, operator, value);
         }
@@ -60,12 +46,12 @@ where
             group: None
         });
 
-        self.where_arguments.push(value);
+        self.where_arguments.push(unsafe { std::mem::transmute_copy(&10) });
         
         return self;
     }
 
-    pub fn and_where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
+    pub fn and_where<W: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: W) -> &mut Self {
         if self.statement.query.where_queries.len() == 0 {
             return self.r#where(column, operator, value);
         }
@@ -77,12 +63,12 @@ where
             group: None
         });
 
-        self.where_arguments.push(value);
+        self.where_arguments.push(unsafe { std::mem::transmute_copy(&value) });
         
         return self;
     }
 
-    pub fn or_where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
+    pub fn or_where<W: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: W) -> &mut Self {
         if self.statement.query.where_queries.len() == 0 {
             return self.r#where(column, operator, value);
         }
@@ -94,8 +80,13 @@ where
             group: None
         });
 
-        self.where_arguments.push(value);
+        self.where_arguments.push(unsafe { std::mem::transmute_copy(&value) });
 
+        return self;
+    }
+
+    pub fn bind<W: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: W) -> &'q mut Self {
+        self.insert_arguments.push(unsafe { std::mem::transmute_copy(&value) });
         return self;
     }
 

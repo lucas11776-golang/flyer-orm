@@ -1,5 +1,5 @@
 
-use std::{marker::PhantomData, str};
+use std::{marker::PhantomData, mem::take, str};
 
 use anyhow::{Result};
 use sqlx::{Arguments, Encode, IntoArguments, types::Type};
@@ -12,19 +12,19 @@ use crate::{
 
 
 
-pub struct Update<'q, E: Executor, T: 'q + Encode<'q, E::T> + Type<E::T>> {
+pub struct Update<'q, E: Executor> {
     db: &'q E,
-    statement: &'q mut Statement<'q, E::T>,
-    insert_arguments: Vec<T>,
-    where_arguments: Vec<T>,
+    statement: &'q mut Statement<E::T>,
+    insert_arguments: <E::T as sqlx::Database>::Arguments,
+    where_arguments: <E::T as sqlx::Database>::Arguments,
     _marker: PhantomData<E>
 }
 
-impl <'q, E, T: 'q + Encode<'q, E::T> + Type<E::T>>Update<'q, E, T>
+impl <'q, E>Update<'q, E>
 where
     E: Executor
 {
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
+    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<E::T>) -> Self {
         return Self {
             db: db,
             statement: statement,
@@ -34,7 +34,7 @@ where
         }
     }
 
-    pub fn r#where<W: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: W) -> &mut Self {
+    pub fn r#where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
         if self.statement.query.where_queries.len() != 0 {
             return self.and_where(column, operator, value);
         }
@@ -46,12 +46,12 @@ where
             group: None
         });
 
-        self.where_arguments.push(unsafe { std::mem::transmute_copy(&10) });
+        self.where_arguments.add(value).unwrap();
         
         return self;
     }
 
-    pub fn and_where<W: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: W) -> &mut Self {
+    pub fn and_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
         if self.statement.query.where_queries.len() == 0 {
             return self.r#where(column, operator, value);
         }
@@ -63,12 +63,12 @@ where
             group: None
         });
 
-        self.where_arguments.push(unsafe { std::mem::transmute_copy(&value) });
+        self.insert_arguments.add(value).unwrap();
         
         return self;
     }
 
-    pub fn or_where<W: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: W) -> &mut Self {
+    pub fn or_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
         if self.statement.query.where_queries.len() == 0 {
             return self.r#where(column, operator, value);
         }
@@ -80,13 +80,13 @@ where
             group: None
         });
 
-        self.where_arguments.push(unsafe { std::mem::transmute_copy(&value) });
-
+        self.where_arguments.add(value).unwrap();
+        
         return self;
     }
 
-    pub fn bind<W: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: W) -> &'q mut Self {
-        self.insert_arguments.push(unsafe { std::mem::transmute_copy(&value) });
+    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
+        self.insert_arguments.add(value).unwrap();
         return self;
     }
 
@@ -102,16 +102,20 @@ where
     //     return self;
     // }
 
-    pub async fn execute(&'q mut self) -> Result<()> {
+    pub async fn execute(&mut self) -> Result<()> {
         self.statement.arguments = Default::default();
 
-        for v in self.insert_arguments.iter() {
-            self.statement.arguments.add(v).unwrap();
-        }
+        self.statement.arguments.merge(take(&mut self.insert_arguments));
+        self.statement.arguments.merge(take(&mut self.where_arguments));
 
-        for v in self.where_arguments.iter() {
-            self.statement.arguments.add(v).unwrap();
-        }
+
+        // for v in self.insert_arguments.iter() {
+        //     self.statement.arguments.add(v).unwrap();
+        // }
+
+        // for v in self.where_arguments.iter() {
+        //     self.statement.arguments.add(v).unwrap();
+        // }
         
         return self.db.update(self.statement).await;
     }

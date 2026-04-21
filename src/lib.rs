@@ -70,7 +70,7 @@ impl <E: Executor>Database<E> {
 
 pub struct Query<'q, E: Executor> {
     db: &'q E,
-    statement: Statement<'q, E::T>,
+    statement: Statement<E::T>,
     _marker: PhantomData<E>
 }
 
@@ -81,7 +81,7 @@ where
     pub fn new(table: &str, exc: &'q E) -> Self {
         return Self {
             db: exc,
-            statement: Statement::<'q, E::T>::new(table),
+            statement: Statement::<E::T>::new(table),
             _marker: PhantomData,
         }
     }
@@ -239,7 +239,7 @@ where
         return Insert::new(&self.db, &mut self.statement);
     }
 
-    pub fn update<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, columns: Vec<&str>) -> Update<'q, E, T> {
+    pub fn update(&'q mut self, columns: Vec<&str>) -> Update<'q, E> {
         self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
 
         return Update::new(&self.db, &mut self.statement);

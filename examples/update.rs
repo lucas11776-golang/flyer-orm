@@ -30,13 +30,13 @@ async fn main() -> Result<()> {
         .execute()
         .await?;
 
-    // Verify the update
-    let updated_user = db.query("users")
-        .r#where("name", "=", "John")
-        .first::<User>()
-        .await?;
+    // // Verify the update
+    // let updated_user = db.query("users")
+    //     .r#where("name", "=", "John")
+    //     .first::<User>()
+    //     .await?;
 
-    println!("Updated User: {:?}", updated_user);
+    // println!("Updated User: {:?}", updated_user);
 
     return Ok(());
 }

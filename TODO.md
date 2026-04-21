@@ -35,3 +35,8 @@ sqlx = { git = "https://github.com/lucas11776-golang/sqlx", branch = "arguments"
 
 sqlx = { git = "https://github.com/lucas11776-golang/sqlx", branch = "arguments", version = "0.9.0-alpha.1", features = ["any", "sqlite", "mysql", "postgres", "macros", "runtime-tokio-native-tls", "uuid"] }
 
+
+
+
+sqlx = { git = "https://github.com/lucas11776-golang/sqlx", branch = "arguments", version = "0.9.0-alpha.1", features = ["any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive"] }
+

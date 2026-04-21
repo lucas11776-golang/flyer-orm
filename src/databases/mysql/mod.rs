@@ -31,7 +31,7 @@ impl Executor for MySQL {
         todo!()
     }
 
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String {
+    fn to_sql<'q>(&self, statement: &'q Statement<Self::T>) -> String {
         todo!()
     }
 
@@ -40,26 +40,26 @@ impl Executor for MySQL {
         todo!();
     }
     
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+    async fn insert<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
         todo!()
     }
     
-    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    async fn insert_as<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         todo!()
     }
     
-    async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+    async fn update<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
         todo!()
     }
     
-    async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
+    async fn count<'q>(&self, statement: &'q Statement<Self::T>) -> Result<u64> {
         return Ok(0);
     }
     
-    async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+    async fn delete<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
         todo!()
     }
 
@@ -75,19 +75,19 @@ impl Executor for MySQL {
         todo!()
     }
 
-    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
+    async fn all<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
         todo!()
     }
 
-    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    async fn first<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
         todo!()
     }
 
-    async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized {
         todo!()

@@ -19,8 +19,7 @@ pub struct Update<'q, E: Executor> {
 
 impl <'q, E>Update<'q, E>
 where
-    E: Executor,
-    <E::T as sqlx::Database>::Arguments: Arguments<Database = E::T>
+    E: Executor
 {
     pub(crate) fn new(db: &'q E, statement: &'q mut Statement<E::T>) -> Self {
         return Self {
@@ -103,9 +102,9 @@ where
     pub async fn execute(&mut self) -> Result<()> {
         self.statement.arguments = Default::default();
 
-        Arguments::merge(&mut self.statement.arguments, take(&mut self.insert_arguments));
-        Arguments::merge(&mut self.statement.arguments, take(&mut self.where_arguments));
-
+        self.statement.arguments.merge(take(&mut self.insert_arguments));
+        self.statement.arguments.merge(take(&mut self.where_arguments));
+        
         return self.db.update(self.statement).await;
     }
-    }
+}

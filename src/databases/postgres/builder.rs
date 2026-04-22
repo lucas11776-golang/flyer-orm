@@ -47,17 +47,12 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
     }
 
     fn update(&mut self) -> String {
-        let sql = format!(
+        return format!(
             "UPDATE {} SET {} {};",
             self.statement.table,
             self.statement.select.iter().map(|col| format!("{} = {}", col, self.position())).collect::<Vec<_>>().join(","),
             self.r#where()
         );
-
-
-        println!("\r\n\r\n\r\nSQL -> {}\r\n\r\n\r\n", sql);
-
-        return sql;
     }
 
     fn delete(&mut self) -> String {

@@ -12,39 +12,60 @@ Flyer-ORM is a powerful and lightweight Object-Relational Mapping (ORM) framewor
 - SQLite
 
 
+## Installation
+
+Add `flyer-orm` to your `Cargo.toml`. By default, it includes basic macros and JSON support. You must specify your database driver and runtime.
+
+```toml
+[dependencies]
+# Example: Using SQLite with Tokio and Rustls
+flyer-orm = { version = "0.0.13", features = ["sqlite", "runtime-tokio", "tls-rustls"] }
+```
+
+### Available Features
+
+Flyer-ORM forwards features to `sqlx`, allowing you to keep your binary lean by only including what you need.
+
+#### Database Drivers
+- `sqlite`: Enable SQLite support.
+- `postgres`: Enable PostgreSQL support.
+- `mysql`: Enable MySQL support.
+- `any`: Enable the "Any" database driver (runtime-determined).
+
+#### Runtimes (Pick One)
+- `runtime-tokio`: Use the Tokio runtime.
+- `runtime-async-std`: Use the async-std runtime.
+- `runtime-smol`: Use the smol runtime.
+
+#### TLS Providers (Required for Postgres/MySQL)
+- `tls-rustls`: Use Rustls (recommended).
+- `tls-native-tls`: Use the system's native TLS.
+
+#### Extra Types
+- `uuid`: Support for UUID types.
+- `chrono`: Support for Chrono date/time types.
+- `time`: Support for Time date/time types.
+- `rust_decimal`: Support for Decimal types.
+
+#### Bundles
+- `full`: Enables all database drivers, common types (uuid, chrono, decimal), and migrations.
+
 ## Getting Started
 
-### Key Features:
-
-- Fluent Query Builder
-- Connection Management
-- Database Migrations (Raw SQL Execution)
-- Transactions Support
-- Pagination
-- Raw SQL Query Support
-- Type-safe results with `sqlx` and `serde`
-
-
-## Getting with Flyer-ORM
-
-First create a new project using command:
-
+### 1. Create a project
 ```sh
-cargo new example
+cargo new my_app
+cd my_app
 ```
 
-After running the command add `flyer-orm` to your project using command:
+### 2. Configure Cargo.toml
+Add `flyer-orm` with the features you need:
 
-```sh
-cargo add flyer-orm
-```
-
-Also add `tokio`, `sqlx` and `serde` as they are commonly used with Flyer-ORM:
-
-```sh
-cargo add tokio --features full
-cargo add sqlx --features "runtime-tokio-rustls"
-cargo add serde --features derive
+```toml
+[dependencies]
+flyer-orm = { version = "0.0.13", features = ["postgres", "runtime-tokio", "tls-rustls"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
 ```
 
 ### Connection Management

@@ -20,6 +20,69 @@ async-std = "1.13.2"
 uuid = { version = "1.21.0", features = ["v4"] }
 dotenv = "0.15.0"
 geo = "0.33.1"
+sqlx = { git = "https://github.com/lucas11776-golang/sqlx", version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate"] }
 
+[features]
+default = ["macros", "migrate", "json"]
 
-sqlx = { git = "https://github.com/lucas11776-golang/sqlx", branch = "arguments", version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate"] }
+# --- Database Drivers ---
+any = ["sqlx/any"]
+postgres = ["sqlx/postgres"]
+mysql = ["sqlx/mysql"]
+sqlite = ["sqlx/sqlite"]
+
+# --- Runtimes (App must pick ONE) ---
+runtime-tokio = ["sqlx/runtime-tokio"]
+runtime-async-std = ["sqlx/runtime-async-std"]
+runtime-smol = ["sqlx/runtime-smol"]
+runtime-async-global-executor = ["sqlx/runtime-async-global-executor"]
+
+# --- TLS Providers (App must pick ONE if using Network DBs) ---
+tls-native-tls = ["sqlx/tls-native-tls"]
+tls-rustls = ["sqlx/tls-rustls"]
+tls-rustls-aws-lc-rs = ["sqlx/tls-rustls-aws-lc-rs"]
+tls-rustls-ring = ["sqlx/tls-rustls-ring"]
+
+# --- Core Functionality ---
+macros = ["sqlx/macros"]
+migrate = ["sqlx/migrate"]
+derive = ["sqlx/derive"]
+sqlx-toml = ["sqlx/sqlx-toml"]
+
+# --- Type Integrations ---
+json = ["sqlx/json"]
+uuid = ["sqlx/uuid"]
+chrono = ["sqlx/chrono"]
+time = ["sqlx/time"]
+bigdecimal = ["sqlx/bigdecimal"]
+rust_decimal = ["sqlx/rust_decimal"]
+ipnetwork = ["sqlx/ipnetwork"]
+ipnet = ["sqlx/ipnet"]
+mac_address = ["sqlx/mac_address"]
+bit-vec = ["sqlx/bit-vec"]
+bstr = ["sqlx/bstr"]
+
+# --- SQLite Specifics ---
+sqlite-bundled = ["sqlx/sqlite-bundled"]
+sqlite-unbundled = ["sqlx/sqlite-unbundled"]
+sqlite-deserialize = ["sqlx/sqlite-deserialize"]
+sqlite-load-extension = ["sqlx/sqlite-load-extension"]
+sqlite-preupdate-hook = ["sqlx/sqlite-preupdate-hook"]
+sqlite-unlock-notify = ["sqlx/sqlite-unlock-notify"]
+
+# --- MySQL Specifics ---
+mysql-rsa = ["sqlx/mysql-rsa"]
+
+# --- Convenience Bundles ---
+all-databases = ["mysql", "sqlite", "postgres", "any"]
+full = [
+    "all-databases",
+    "macros",
+    "migrate",
+    "json",
+    "uuid",
+    "chrono",
+    "time",
+    "rust_decimal",
+    "bigdecimal"
+]

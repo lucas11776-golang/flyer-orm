@@ -1,4 +1,3 @@
-
 use std::{marker::PhantomData, mem::take, str};
 
 use anyhow::{Result};
@@ -9,7 +8,6 @@ use crate::{
     query::Statement,
     types::{Condition, Where}
 };
-
 
 pub struct Update<'q, E: Executor> {
     db: &'q E,
@@ -110,10 +108,3 @@ where
         return self.db.update(self.statement).await;
     }
 }
-
-
-// pub struct Bag<'q, DB: sqlx::Database, T: Encode<'q, DB> + Type<DB>> {
-//     values: Vec<T>,
-//     _marker: PhantomData<DB>,
-//     _lifetime: PhantomData<&'q ()>
-// }

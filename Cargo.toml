@@ -71,7 +71,6 @@ sqlite-preupdate-hook = ["sqlx/sqlite-preupdate-hook"]
 sqlite-unlock-notify = ["sqlx/sqlite-unlock-notify"]
 
 # --- MySQL Specifics ---
-mysql-rsa = ["sqlx/mysql-rsa"]
 
 # --- Convenience Bundles ---
 all-databases = ["mysql", "sqlite", "postgres", "any"]

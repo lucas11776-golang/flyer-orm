@@ -20,7 +20,7 @@ async-std = "1.13.2"
 uuid = { version = "1.21.0", features = ["v4"] }
 dotenv = "0.15.0"
 geo = "0.33.1"
-sqlx = { path = "sqlx", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate"] }
+sqlx = { path = "sqlx", version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate"] }
 
 [features]
 default = ["macros", "migrate", "json"]

@@ -1,8 +1,6 @@
 mod builder;
 pub mod query;
 
-use std::result;
-
 use anyhow::Result;
 use sqlx::{Arguments, AssertSqlSafe, PgPool, Pool, Postgres as Database, any::AnyQueryResult};
 

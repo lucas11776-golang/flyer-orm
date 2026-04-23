@@ -8,6 +8,10 @@ description = "ORM"
 readme = "README.md"
 homepage = "https://github.com/lucas11776-golang/flyer-orm"
 repository = "https://github.com/lucas11776-golang/flyer-orm"
+build = "build.rs"
+
+[build-dependencies]
+git2 = "0.20.4"
 
 [dependencies]
 anyhow = "1.0.102"

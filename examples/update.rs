@@ -25,18 +25,21 @@ async fn main() -> Result<()> {
     // Perform an update
     db.query("users")
         .update(vec!["status"])
-        .r#where("name", "=", "John")
         .bind("active")
+        .r#where("name", "=", "John")
         .execute()
+        .await
+        .unwrap();
+
+    // Verify the update
+    let updated = db.query("users")
+        .r#where("name", "=", "John")
+        .first::<User>()
         .await?;
 
-    // // Verify the update
-    // let updated_user = db.query("users")
-    //     .r#where("name", "=", "John")
-    //     .first::<User>()
-    //     .await?;
+    assert_eq!("active", updated.status);
 
-    // println!("Updated User: {:?}", updated_user);
+    println!("User updated with status: {}", updated.status);
 
     return Ok(());
 }

@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, mem::take, str};
+use std::{marker::PhantomData, str};
 
 use anyhow::{Result};
 use sqlx::{Arguments, Encode, types::Type};
@@ -11,22 +11,20 @@ use crate::{
 
 pub struct Update<'q, E: Executor> {
     db: &'q E,
-    statement: &'q mut Statement<E::T>,
-    insert_arguments: <E::T as sqlx::Database>::Arguments,
-    where_arguments: <E::T as sqlx::Database>::Arguments,
+    statement: &'q mut Statement<'q, E::T>,
     _marker: PhantomData<E>
 }
 
+// TODO: Need to have two arguments of insert and where value bindings.
+// Currently -> Insert and Where in order
 impl <'q, E>Update<'q, E>
 where
     E: Executor
 {
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<E::T>) -> Self {
+    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
         return Self {
             db: db,
             statement: statement,
-            insert_arguments: Default::default(),
-            where_arguments: Default::default(),
             _marker: PhantomData,
         }
     }
@@ -43,7 +41,7 @@ where
             group: None
         });
 
-        self.where_arguments.add(value).unwrap();
+        self.statement.arguments.add(value).unwrap();
         
         return self;
     }
@@ -60,7 +58,7 @@ where
             group: None
         });
 
-        self.where_arguments.add(value).unwrap();
+        self.statement.arguments.add(value).unwrap();
         
         return self;
     }
@@ -77,13 +75,13 @@ where
             group: None
         });
 
-        self.where_arguments.add(value).unwrap();
+        self.statement.arguments.add(value).unwrap();
         
         return self;
     }
 
     pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
-        self.insert_arguments.add(value).unwrap();
+        self.statement.arguments.add(value).unwrap();
         return self;
     }
 
@@ -99,12 +97,7 @@ where
     //     return self;
     // }
 
-    pub async fn execute(&mut self) -> Result<()> {
-        self.statement.arguments = Default::default();
-
-        self.statement.arguments.merge(take(&mut self.insert_arguments));
-        self.statement.arguments.merge(take(&mut self.where_arguments));
-        
+    pub async fn execute(&'q mut self) -> Result<()> {
         return self.db.update(self.statement).await;
     }
 }

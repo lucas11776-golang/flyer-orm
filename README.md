@@ -181,6 +181,10 @@ async fn create_user(db: &Database<SQLite>) {
 
 ### Update
 
+N.B The update order must be:
+- Bind
+- Where
+
 ```rust
 async fn update_user(db: &Database<SQLite>) {
     db.query("users")

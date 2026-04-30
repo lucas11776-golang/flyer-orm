@@ -37,12 +37,12 @@ impl ToString for Order {
 }
 
 #[derive(Clone, Debug)]
-pub struct Statement<DB: sqlx::Database> {
+pub struct Statement<'q, DB: sqlx::Database> {
     pub(crate) query: SQL,
-    pub(crate) arguments: DB::Arguments 
+    pub(crate) arguments: DB::Arguments<'q> 
 }
 
-impl <DB>Statement<DB>
+impl <'q, DB>Statement<'q, DB>
 where
     DB: sqlx::Database
 {

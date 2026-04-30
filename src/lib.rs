@@ -70,7 +70,7 @@ impl <E: Executor>Database<E> {
 
 pub struct Query<'q, E: Executor> {
     db: &'q E,
-    statement: Statement<E::T>,
+    statement: Statement<'q, E::T>,
     _marker: PhantomData<E>
 }
 

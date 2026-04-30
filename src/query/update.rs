@@ -11,7 +11,7 @@ use crate::{
 
 pub struct Update<'q, E: Executor> {
     db: &'q E,
-    statement: &'q mut Statement<E::T>,
+    statement: &'q mut Statement<'q, E::T>,
     _marker: PhantomData<E>
 }
 
@@ -21,7 +21,7 @@ impl <'q, E>Update<'q, E>
 where
     E: Executor
 {
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<E::T>) -> Self {
+    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
         return Self {
             db: db,
             statement: statement,

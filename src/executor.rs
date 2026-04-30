@@ -11,19 +11,19 @@ pub trait Executor {
 
     fn db<'q>(&'q self) -> &'q Pool<Self::T>; 
 
-    fn to_sql<'q>(&self, statement: &'q Statement<Self::T>) -> String;
+    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String;
 
     async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult>;
 
-    async fn insert<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()>;
+    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 
-    async fn update<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()>;
+    async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 
-    async fn count<'q>(&self, statement: &'q Statement<Self::T>) -> Result<u64>;
+    async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64>;
 
-    async fn delete<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()>;
+    async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 
-    async fn insert_as<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<O>
+    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
@@ -35,15 +35,15 @@ pub trait Executor {
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn all<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<Vec<O>>
+    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn first<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<O>
+    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 
-    async fn paginate<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
 }

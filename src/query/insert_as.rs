@@ -7,7 +7,7 @@ use crate::{executor::Executor, query::Statement};
 
 pub struct InsertAs<'q, E: Executor, O> {
     db: &'q E,
-    statement: &'q mut Statement<'q, E::T>,
+    statement: &'q mut Statement<E::T>,
     _marker: PhantomData<E>,
     _type: PhantomData<O>
 }
@@ -17,7 +17,7 @@ where
     E: Executor,
     O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
 {
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
+    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<E::T>) -> Self {
         return Self {
             db: db,
             statement: statement,

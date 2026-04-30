@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sqlx::{Arguments, Pool, Sqlite};
+use sqlx::{Arguments, AssertSqlSafe, Pool, Sqlite};
 
 use crate::{
     Executor,
@@ -23,28 +23,28 @@ pub struct SQLite {
 }
 
 impl SQLite {
-    async fn fetch_one<'q, O>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<O>
+    async fn fetch_one<'q, O>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(&sql, arguments)
+        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(AssertSqlSafe(sql.as_str()), arguments)
             .fetch_one(&self.db)
             .await
             .map_err(|e| e.into());
     }
 
-    async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    async fn fetch_all<'q, O>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(&sql, arguments)
+        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(AssertSqlSafe(sql.as_str()), arguments)
             .fetch_all(&self.db)
             .await
             .map_err(|e| e.into());
     }
 
-    async fn execute_query<'q>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<SQLiteQueryResult> {
-        return sqlx::query_with::<<Self as Executor>::T, _>(&sql, arguments)
+    async fn execute_query<'q>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments) -> Result<SQLiteQueryResult> {
+        return sqlx::query_with::<<Self as Executor>::T, _>(AssertSqlSafe(sql.as_str()), arguments)
             .execute(&self.db)
             .await
             .map_err(|e| e.into())
@@ -70,7 +70,7 @@ impl Executor for SQLite {
         return &self.db;
     }
     
-    fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String {
+    fn to_sql<'q>(&self, statement: &'q Statement<Self::T>) -> String {
         return Builder::new(&statement.query).query();
     }
 
@@ -78,13 +78,13 @@ impl Executor for SQLite {
         return self.execute_query(String::from(sql), Default::default()).await;
     }
     
-    async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+    async fn insert<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
         return self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone())
             .await
             .map(|_| ());
     }
     
-    async fn insert_as<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    async fn insert_as<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
@@ -104,13 +104,13 @@ impl Executor for SQLite {
         return Ok(self.first(&statement).await.unwrap());
     }
     
-    async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+    async fn update<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
         return self.execute_query(Builder::new(&statement.query).update(), statement.arguments.clone())
             .await
             .map(|_| ());
     }
     
-    async fn count<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<u64> {
+    async fn count<'q>(&self, statement: &'q Statement<Self::T>) -> Result<u64> {
         let query = {
             let mut query = statement.query.clone();
             query.select = vec!["COUNT(*) as total".to_string()];
@@ -122,7 +122,7 @@ impl Executor for SQLite {
             .map(|t| t.total as u64);
     }
     
-    async fn delete<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
+    async fn delete<'q>(&self, statement: &'q Statement<Self::T>) -> Result<()> {
         return self.execute_query(Builder::new(&statement.query).delete(), statement.arguments.clone())
             .await
             .map(|_| ());
@@ -132,7 +132,7 @@ impl Executor for SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
+        let mut arguments: <Self::T as sqlx::Database>::Arguments = Default::default();
 
         for arg in args { arguments.add(arg).unwrap(); }
 
@@ -143,28 +143,28 @@ impl Executor for SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        let mut arguments: <Self::T as sqlx::Database>::Arguments<'q> = Default::default();
+        let mut arguments: <Self::T as sqlx::Database>::Arguments = Default::default();
 
         for arg in args { arguments.add(arg).unwrap(); }
 
         return self.fetch_one(String::from(sql), arguments).await;
     }
     
-    async fn first<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<O>
+    async fn first<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<O>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return self.fetch_one(self.to_sql(statement), statement.arguments.clone()).await;
     }
     
-    async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>
+    async fn all<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
         return self.fetch_all::<O>(self.to_sql(statement), statement.arguments.clone()).await;
     }
 
-    async fn paginate<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&self, statement: &'q Statement<Self::T>) -> Result<Pagination<O>>
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {

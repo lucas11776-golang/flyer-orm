@@ -33,7 +33,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
 
     fn insert(&mut self) -> String {
         return format!(
-            "INSERT INTO {} ({}) VALUES ({});",
+            "INSERT INTO {} ({}) VALUES ({}) RETURNING *;",
             self.statement.table,
             self.statement.select.clone().join(", "),
             std::iter::repeat("?")

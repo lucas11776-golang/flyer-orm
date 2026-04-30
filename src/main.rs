@@ -22,6 +22,14 @@ pub struct User {
 }
 
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct Subscription {
+    pub id: i32,
+    // pub created_at: i8,
+    pub email: String
+}
+
+
 pub struct Connection;
 
 impl Connection {
@@ -40,14 +48,24 @@ impl Connection {
 
     let db = Connection::db().await;
 
-    db.query("users")
-        .update(vec!["first_name", "last_name"])
-        .bind("Jeo")
-        .bind("Deo")
-        .r#where("email", "=", "thembangubeni04@gmail.com")
+    // db.query("users")
+    //     .update(vec!["first_name", "last_name"])
+    //     .bind("Jeo")
+    //     .bind("Deo")
+    //     .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     .execute()
+    //     .await
+    //     .unwrap();
+
+    let subscription = db.query("subscription")
+        .insert_as::<Subscription>(vec!["email"])
+        .bind("thembangubeni04@gmail.com")
         .execute()
         .await
         .unwrap();
+
+
+    println!("INSERTED -> {:?}", subscription);
 
     Ok(())
 }

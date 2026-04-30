@@ -1,6 +1,6 @@
 [package]
 name = "flyer-orm"
-version = "0.0.16"
+version = "0.0.17"
 edition = "2024"
 authors = ["Themba Lucas Ngubeni <thembangubeni04@email.com>"]
 license = "MIT"
@@ -80,5 +80,6 @@ full = [
     "chrono",
     "time",
     "rust_decimal",
-    "bigdecimal"
+    "bigdecimal",
+    "derive"
 ]

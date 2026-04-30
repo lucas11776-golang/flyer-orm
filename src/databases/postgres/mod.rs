@@ -8,7 +8,6 @@ use crate::{
     Executor,
     databases::postgres::{builder::Builder, query::PostgresQueryResult},
     query::{Pagination, QueryBuilder, QueryResult, Statement},
-    types::Where
 };
 
 #[derive(sqlx::FromRow)]
@@ -57,6 +56,7 @@ impl Postgres {
             .map_err(|e| e.into())
             .map(|result| {
                 let any = AnyQueryResult::from(result);
+
                 return PostgresQueryResult {
                     affected: any.rows_affected(),
                     id: any.last_insert_id().unwrap_or(0) as u64,
@@ -97,20 +97,10 @@ impl Executor for Postgres {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        let result = self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
-
-        let mut statement = Statement::<Self::T>::new(&statement.query.table);
-
-        statement.query.where_queries.push(Where {
-            column: Some("rowid".to_string()),
-            operator: Some("=".to_string()),
-            condition: None,
-            group: None
-        });
-
-        statement.arguments.add(result.last_inserted() as i64).unwrap();
-
-        return Ok(self.first(&statement).await.unwrap());
+        return sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(Builder::new(&statement.query).insert().as_str(), statement.arguments.clone())
+            .fetch_one(&self.db)
+            .await
+            .map_err(|e| e.into());
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {

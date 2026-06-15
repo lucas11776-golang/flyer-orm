@@ -55,6 +55,25 @@ impl SQLite {
                 };
             });
     }
+
+    async fn fetch_by_rowid<'q, O>(&'q self, table: String, rowid: u64) -> Result<O>
+    where
+        O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        let mut statement = Statement::<<SQLite as Executor>::T>::new(&table);
+
+        statement.query.where_queries.push(Where {
+            column: Some("rowid".to_string()),
+            operator: Some("=".to_string()),
+            condition: None,
+            group: None
+        });
+
+        statement.arguments.add(rowid as i64).unwrap();
+
+        return Ok(self.first(&statement).await.unwrap());
+    }
+    
 }
 
 impl Executor for SQLite {
@@ -78,6 +97,13 @@ impl Executor for SQLite {
         return self.execute_query(String::from(sql), args)
             .await;
     }
+
+    async fn execute_as<'q, O>(&self, sql: String, arguments: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::prelude::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        todo!()
+    }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
         return self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone())
@@ -91,18 +117,7 @@ impl Executor for SQLite {
     {
         let result = self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone()).await.unwrap();
 
-        let mut statement = Statement::<Self::T>::new(&statement.query.table);
-
-        statement.query.where_queries.push(Where {
-            column: Some("rowid".to_string()),
-            operator: Some("=".to_string()),
-            condition: None,
-            group: None
-        });
-
-        statement.arguments.add(result.last_inserted() as i64).unwrap();
-
-        return Ok(self.first(&statement).await.unwrap());
+        return self.fetch_by_rowid(statement.query.table.clone(), result.last_inserted()).await;
     }
     
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {

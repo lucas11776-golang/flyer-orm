@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
-use sqlx::{Arguments, Encode, types::Type};
+use sqlx::{Arguments, Encode, FromRow, types::Type};
 
 use crate::{executor::Executor, query::QueryResult,};
 
@@ -37,10 +37,10 @@ where
             .await;
     }
 
-    // pub async fn execute_as<O>(self) -> Result<Vec<O>>
-    // where
-    //     O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    // {
-    //     todo!()
-    // }
+    pub async fn execute_as<O>(self) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return self.executor.execute_as(self.sql, self.arguments).await;
+    }
 }

@@ -36,8 +36,15 @@ impl Executor for MySQL {
     }
 
     #[allow(refining_impl_trait)]
-    async fn execute<'q>(&self, _sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<MySQLQueryResult> {
+    async fn execute<'q>(&self, _sql: String, _args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<MySQLQueryResult> {
         todo!();
+    }
+
+    async fn execute_as<'q, O>(&self, _sql: String, _args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::prelude::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        todo!()
     }
     
     async fn insert<'q>(&self, _statement: &'q Statement<'q, Self::T>) -> Result<()> {

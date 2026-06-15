@@ -15,6 +15,10 @@ pub trait Executor {
 
     async fn execute<'q>(&self, sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult>;
 
+    async fn execute_as<'q, O>(&self, sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized;
+
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 
     async fn update<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;

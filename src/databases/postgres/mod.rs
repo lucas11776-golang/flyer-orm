@@ -63,6 +63,16 @@ impl Postgres {
                 };
             });
     }
+
+    // async fn query_as_with<'q, O>(&'q self, sql: String, arguments: <<Postgres as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    // where
+    //     O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    // {
+    //     return sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(sql, arguments)
+    //         .fetch_all(&self.db)
+    //         .await
+    //         .map_err(|e| e.into());
+    // }
 }
 
 impl Executor for Postgres {
@@ -85,6 +95,16 @@ impl Executor for Postgres {
     async fn execute<'q>(&self, sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult> {
         return self.execute_query(String::from(sql), args)
             .await;
+    }
+
+    async fn execute_as<'q, O>(&self, sql: String, arguments: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::prelude::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        return sqlx::query_as_with::<<Postgres as Executor>::T, O, _>(&sql, arguments)
+            .fetch_all(&self.db)
+            .await
+            .map_err(|e| e.into());
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {

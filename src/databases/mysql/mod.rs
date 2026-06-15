@@ -36,7 +36,7 @@ impl Executor for MySQL {
     }
 
     #[allow(refining_impl_trait)]
-    async fn execute<'q>(&self, _sql: &'q str) -> Result<MySQLQueryResult> {
+    async fn execute<'q>(&self, _sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<MySQLQueryResult> {
         todo!();
     }
     

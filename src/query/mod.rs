@@ -7,6 +7,7 @@ pub mod update;
 pub mod insert;
 pub mod insert_as;
 pub mod where_group;
+pub mod raw_query;
 
 pub(crate) trait QueryBuilder<'q> {
     fn new(statement: &'q SQL) -> Self where Self: Sized;

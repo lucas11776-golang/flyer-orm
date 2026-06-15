@@ -13,7 +13,7 @@ pub trait Executor {
 
     fn to_sql<'q>(&self, statement: &'q Statement<'q, Self::T>) -> String;
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult>;
+    async fn execute<'q>(&self, sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult>;
 
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()>;
 

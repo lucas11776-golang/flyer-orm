@@ -17,8 +17,8 @@ async fn main() -> Result<()> {
     let db = Database::<SQLite>::new(":memory:").await;
 
     // Set up schema and initial data
-    db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, status TEXT)").await?;
-    db.execute("INSERT INTO users (name, status) VALUES ('John', 'inactive')").await?;
+    db.raw_query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, status TEXT)").execute().await?;
+    db.raw_query("INSERT INTO users (name, status) VALUES ('John', 'inactive')").execute().await?;
 
     println!("User created with status: inactive");
 

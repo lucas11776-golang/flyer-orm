@@ -74,8 +74,9 @@ impl Executor for SQLite {
         return Builder::new(&statement.query).query();
     }
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
-        return self.execute_query(String::from(sql), Default::default()).await;
+    async fn execute<'q>(&self, sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult> {
+        return self.execute_query(String::from(sql), args)
+            .await;
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use flyer_orm::{Database, databases::sqlite::SQLite};
+use flyer_orm::{Database, databases::sqlite::SQLite, query::QueryResult};
 use serde::Serialize;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
     let db = Connection::db().await;
 
     // Migrate database with users table
-    if let Err(err) = db.execute(USERS_TABLE_SCHEME).await {
+    if let Err(err) = db.raw_query(USERS_TABLE_SCHEME).execute().await {
         panic!("Error: {:?}", err)
     }
 
@@ -66,6 +66,16 @@ async fn main() -> Result<()> {
 
 
     println!("User: {:?}", products_range_r10_to_r30);
+
+    // Raw Query
+    let result = db.raw_query("INSERT INTO products (name, price) VALUES ($1, $2)")
+        .bind("Butter")
+        .bind(150)
+        .execute()
+        .await
+        .unwrap();
+
+    println!("QUERY RESULT -> {:?} -> AFFECTED -> {:?}", result.last_inserted(), result.rows_affected());
 
     return Ok(());
 }

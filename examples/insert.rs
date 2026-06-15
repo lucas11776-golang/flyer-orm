@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
     let db = Connection::db().await;
 
     // Migrate database with users table
-    if let Err(err) = db.execute(USERS_TABLE_SCHEME).await {
+    if let Err(err) = db.raw_query(USERS_TABLE_SCHEME).execute().await {
         panic!("Error: {:?}", err)
     }
 

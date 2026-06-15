@@ -2,7 +2,7 @@ mod builder;
 pub mod query;
 
 use anyhow::Result;
-use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult};
+use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult, postgres::PgPoolOptions};
 
 use crate::{
     Executor,
@@ -22,7 +22,12 @@ pub struct Postgres {
 impl Postgres {
     pub async fn connect(url: &str) -> Result<Self> {
         return Ok(Self {
-            db: PgPool::connect(url).await.unwrap()
+            db: PgPoolOptions::new()
+                // .idle_timeout(std::time::Duration::from_secs(3))
+                // .acquire_timeout(std::time::Duration::from_secs(3))
+                // .max_connections(1000)
+                .connect_lazy(url)
+                .unwrap()
         });
     }
 }
@@ -153,7 +158,17 @@ impl Executor for Postgres {
     where
         O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return self.fetch_one(self.to_sql(statement), statement.arguments.clone()).await;
+
+
+
+        println!("IN....");
+
+        let a= self.fetch_one(self.to_sql(statement), statement.arguments.clone()).await;
+
+
+        println!("OUT....");
+
+        return a;
     }
     
     async fn all<'q, O>(&self, statement: &'q Statement<'q, Self::T>) -> Result<Vec<O>>

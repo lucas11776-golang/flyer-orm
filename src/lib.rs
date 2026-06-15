@@ -1,11 +1,20 @@
-use std::{collections::HashMap, marker::PhantomData, mem::take, str, sync::LazyLock};
+use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 
 use anyhow::{Ok, Result};
 use sqlx::{Arguments, Encode, FromRow, types::Type};
 
 use crate::{
     executor::Executor,
-    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, raw_query::RawQuery, update::Update},
+    query::{
+        Order,
+        Pagination,
+        QueryResult,
+        Statement,
+        Transaction,
+        insert::Insert,
+        insert_as::InsertAs,
+        raw_query::RawQuery,
+        update::Update},
     types::{Condition, Join, JoinType, Where}
 };
 

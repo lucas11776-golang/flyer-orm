@@ -22,14 +22,22 @@ pub struct User {
 }
 
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct Subscription {
+    pub id: i32,
+    // pub created_at: i8,
+    pub email: String
+}
+
+
 pub struct Connection;
 
 impl Connection {
-    // pub async fn db() -> Database<Postgres> {
-    //     return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
+    // pub async fn db() -> Database<SQLite> {
+    //     return Database::<SQLite>::new("./database.sqlite").await;
     // }
-    pub async fn db() -> Database<SQLite> {
-        return Database::<SQLite>::new("./database.sqlite").await;
+    pub async fn db() -> Database<Postgres> {
+        return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
     }
 }
 
@@ -40,27 +48,24 @@ impl Connection {
 
     let db = Connection::db().await;
 
-    // let user = db.query("users")
-    //     // .select(vec!["cities.*", "ST_AsText(location::text) AS location"])
-    //     .select(vec!["*"])
-    //     // .r#where("role", ">=", 2)
-    //     // .and_where("role", "<=", 5)
-    //     .r#where("email", "LIKE", "gmail.com")
-    //     .paginate::<User>(1, 1)
+    // db.query("users")
+    //     .update(vec!["first_name", "last_name"])
+    //     .bind("Jeo")
+    //     .bind("Deo")
+    //     .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     .execute()
     //     .await
     //     .unwrap();
 
-    // println!("SQL -> {:?}", user);
-
-
-    let projects = db.query("projects")
-        .select(vec!["name"])
-        .paginate::<Project>(1, 2)
+    let subscription = db.query("subscription")
+        .insert_as::<Subscription>(vec!["email"])
+        .bind("thembangubeni04@gmail.com")
+        .execute()
         .await
         .unwrap();
 
 
-    println!("PROJECT -> {:?}", projects);
+    println!("INSERTED -> {:?}", subscription);
 
     Ok(())
 }

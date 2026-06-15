@@ -27,7 +27,7 @@ impl SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(&sql, arguments)
+        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(sql.as_str(), arguments)
             .fetch_one(&self.db)
             .await
             .map_err(|e| e.into());
@@ -37,14 +37,14 @@ impl SQLite {
     where
         O: for<'r> sqlx::FromRow<'r, <<Self as Executor>::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {
-        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(&sql, arguments)
+        return sqlx::query_as_with::<<Self as Executor>::T, O, _>(sql.as_str(), arguments)
             .fetch_all(&self.db)
             .await
             .map_err(|e| e.into());
     }
 
     async fn execute_query<'q>(&'q self, sql: String, arguments: <<Self as Executor>::T as sqlx::Database>::Arguments<'q>) -> Result<SQLiteQueryResult> {
-        return sqlx::query_with::<<Self as Executor>::T, _>(&sql, arguments)
+        return sqlx::query_with::<<Self as Executor>::T, _>(sql.as_str(), arguments)
             .execute(&self.db)
             .await
             .map_err(|e| e.into())
@@ -74,8 +74,9 @@ impl Executor for SQLite {
         return Builder::new(&statement.query).query();
     }
 
-    async fn execute<'q>(&self, sql: &'q str) -> Result<impl QueryResult> {
-        return self.execute_query(String::from(sql), Default::default()).await;
+    async fn execute<'q>(&self, sql: String, args: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<impl QueryResult> {
+        return self.execute_query(String::from(sql), args)
+            .await;
     }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {

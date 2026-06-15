@@ -6,11 +6,11 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub(crate) struct Builder<'q> {
+pub(crate) struct _Builder<'q> {
     statement: &'q SQL,
 }
 
-impl <'q>QueryBuilder<'q> for Builder<'q> {
+impl <'q>QueryBuilder<'q> for _Builder<'q> {
     fn new(statement: &'q SQL) -> Self where Self: Sized {
         return Self { statement: statement };
     }
@@ -18,7 +18,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
     fn query(&mut self) -> String {
         return format!(
             "{};",
-            vec![self.select(), self.from(), self.join(), self.r#where(), self.group_by(), self.having(), self.order_by(), self.limit()]
+            vec![self._select(), self._from(), self._join(), self._where(), self._group_by(), self._having(), self._order_by(), self._limit()]
                 .iter()
                 .filter(|q| !q.is_empty())
                 .map(|q| String::from(q))
@@ -41,7 +41,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
             "UPDATE {} SET {} {};",
             self.statement.table,
             self.statement.select.iter().map(|c| format!("{} = ?", c)).collect::<Vec<_>>().join(" "),
-            self.r#where()
+            self._where()
         );
     }
 
@@ -50,14 +50,14 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
             format!(
                 "DELETE FROM {} {};",
                 self.statement.table,
-                self.r#where()
+                self._where()
             ).trim()
         );
     }
 }
 
-impl <'q>Builder<'q> {
-    fn select(&self) -> String {
+impl <'q>_Builder<'q> {
+    fn _select(&self) -> String {
         if self.statement.select.is_empty() {
             return format!("SELECT *");
         }
@@ -65,11 +65,11 @@ impl <'q>Builder<'q> {
         return format!("SELECT {}", self.statement.select.join(", "));
     }
 
-    fn from(&self) -> String {
+    fn _from(&self) -> String {
         return format!("FROM {}", self.statement.table);
     }
 
-    fn join(&self) -> String {
+    fn _join(&self) -> String {
         return self.statement
             .join
             .iter()
@@ -87,7 +87,7 @@ impl <'q>Builder<'q> {
     }
 
     // TODO: refactor
-    fn r#where(&self) -> String {
+    fn _where(&self) -> String {
         if self.statement.where_queries.len() == 0 {
             return String::from("");
         }
@@ -112,7 +112,7 @@ impl <'q>Builder<'q> {
         );
     }
 
-    fn group_by(&self) -> String {
+    fn _group_by(&self) -> String {
         return self.statement
             .group_by
             .clone()
@@ -121,7 +121,7 @@ impl <'q>Builder<'q> {
             .unwrap();
     }
 
-    fn having(&self) -> String {
+    fn _having(&self) -> String {
         return self.statement
             .having
             .clone()
@@ -130,7 +130,7 @@ impl <'q>Builder<'q> {
             .unwrap();
     }
 
-    fn order_by(&self) -> String {
+    fn _order_by(&self) -> String {
         return self.statement
             .order_by
             .clone()
@@ -144,7 +144,7 @@ impl <'q>Builder<'q> {
             .unwrap();
     }
 
-    fn limit(&self) -> String {
+    fn _limit(&self) -> String {
         return String::new();
     }    
 }

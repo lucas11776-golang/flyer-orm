@@ -17,8 +17,8 @@ async fn main() -> Result<()> {
     let db = Database::<SQLite>::new(":memory:").await;
 
     // Set up schema and initial data
-    db.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, status TEXT)").await?;
-    db.execute("INSERT INTO users (name, status) VALUES ('John', 'inactive')").await?;
+    db.raw_query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, status TEXT)").execute().await?;
+    db.raw_query("INSERT INTO users (name, status) VALUES ('John', 'inactive')").execute().await?;
 
     println!("User created with status: inactive");
 
@@ -28,15 +28,18 @@ async fn main() -> Result<()> {
         .bind("active")
         .r#where("name", "=", "John")
         .execute()
-        .await?;
+        .await
+        .unwrap();
 
     // Verify the update
-    let updated_user = db.query("users")
+    let updated = db.query("users")
         .r#where("name", "=", "John")
         .first::<User>()
         .await?;
 
-    println!("Updated User: {:?}", updated_user);
+    assert_eq!("active", updated.status);
+
+    println!("User updated with status: {}", updated.status);
 
     return Ok(());
 }

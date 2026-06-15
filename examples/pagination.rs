@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
     let db = Database::<SQLite>::new(":memory:").await;
 
     // Run schema
-    db.execute(SCHEMA).await?;
+    db.raw_query(SCHEMA).execute().await?;
 
     // Paginate results: 2 items per page, page 2
     let page = 2;

@@ -10,8 +10,8 @@ async fn main() -> Result<()> {
     let db = Database::<SQLite>::new(":memory:").await;
 
     // Create a simple table
-    db.execute("CREATE TABLE accounts (id INTEGER PRIMARY KEY, balance INTEGER)").await?;
-    db.execute("INSERT INTO accounts (balance) VALUES (100), (200)").await?;
+    db.raw_query("CREATE TABLE accounts (id INTEGER PRIMARY KEY, balance INTEGER)").execute().await?;
+    db.raw_query("INSERT INTO accounts (balance) VALUES (100), (200)").execute().await?;
 
     println!("Initial balances set.");
 

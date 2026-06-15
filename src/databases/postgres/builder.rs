@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::{
-    query::{QueryBuilder},
+    query::QueryBuilder,
     types::{JoinType, SQL}
 };
 
@@ -33,14 +33,14 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
 
     fn insert(&mut self) -> String {
         return format!(
-            "INSERT INTO {} ({}) VALUES ({});",
+            "INSERT INTO {} ({}) VALUES ({}) RETURNING *;",
             self.statement.table,
             self.statement.select.clone().join(", "),
             std::iter::repeat("?")
                 .take(self.statement.select.len())
                 .collect::<Vec<_>>()
                 .iter()
-                .map(|t| self.position())
+                .map(|_t| self.position())
                 .collect::<Vec<_>>()
                 .join(", ")
         );
@@ -50,7 +50,7 @@ impl <'q>QueryBuilder<'q> for Builder<'q> {
         return format!(
             "UPDATE {} SET {} {};",
             self.statement.table,
-            self.statement.select.iter().map(|c| format!("{} = {}", self.position(), c)).collect::<Vec<_>>().join(" "),
+            self.statement.select.iter().map(|col| format!("{} = {}", col, self.position())).collect::<Vec<_>>().join(","),
             self.r#where()
         );
     }

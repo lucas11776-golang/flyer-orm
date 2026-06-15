@@ -1,8 +1,7 @@
-
 use std::{marker::PhantomData, str};
 
 use anyhow::{Result};
-use sqlx::{Arguments, Encode, IntoArguments, types::Type};
+use sqlx::{Arguments, Encode, types::Type};
 
 use crate::{
     executor::Executor,
@@ -10,26 +9,15 @@ use crate::{
     types::{Condition, Where}
 };
 
-
-#[derive(Default)]
-pub struct Bag {}
-
-
-impl <'q, DB: sqlx::Database>IntoArguments<'q, DB> for Bag {
-    fn into_arguments(self) -> <DB as sqlx::Database>::Arguments<'q> {
-        todo!()
-    }
-}
-
-pub struct Update<'q, E: Executor, T: 'q + Encode<'q, E::T> + Type<E::T>> {
+pub struct Update<'q, E: Executor> {
     db: &'q E,
     statement: &'q mut Statement<'q, E::T>,
-    insert_arguments: Vec<T>,
-    where_arguments: Vec<T>,
     _marker: PhantomData<E>
 }
 
-impl <'q, E, T: 'q + Encode<'q, E::T> + Type<E::T>>Update<'q, E, T>
+// TODO: Need to have two arguments of insert and where value bindings.
+// Currently -> Insert and Where in order
+impl <'q, E>Update<'q, E>
 where
     E: Executor
 {
@@ -37,18 +25,11 @@ where
         return Self {
             db: db,
             statement: statement,
-            insert_arguments: Default::default(),
-            where_arguments: Default::default(),
             _marker: PhantomData,
         }
     }
 
-    pub fn bind(&'q mut self, value: T) -> &'q mut Self {
-        self.insert_arguments.push(value);
-        return self;
-    }
-
-    pub fn r#where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
+    pub fn r#where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
         if self.statement.query.where_queries.len() != 0 {
             return self.and_where(column, operator, value);
         }
@@ -60,12 +41,12 @@ where
             group: None
         });
 
-        self.where_arguments.push(value);
+        self.statement.arguments.add(value).unwrap();
         
         return self;
     }
 
-    pub fn and_where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
+    pub fn and_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
         if self.statement.query.where_queries.len() == 0 {
             return self.r#where(column, operator, value);
         }
@@ -77,12 +58,12 @@ where
             group: None
         });
 
-        self.where_arguments.push(value);
+        self.statement.arguments.add(value).unwrap();
         
         return self;
     }
 
-    pub fn or_where(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
+    pub fn or_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, value: T) -> &mut Self {
         if self.statement.query.where_queries.len() == 0 {
             return self.r#where(column, operator, value);
         }
@@ -94,8 +75,13 @@ where
             group: None
         });
 
-        self.where_arguments.push(value);
+        self.statement.arguments.add(value).unwrap();
+        
+        return self;
+    }
 
+    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
+        self.statement.arguments.add(value).unwrap();
         return self;
     }
 
@@ -112,16 +98,6 @@ where
     // }
 
     pub async fn execute(&'q mut self) -> Result<()> {
-        self.statement.arguments = Default::default();
-
-        for v in self.insert_arguments.iter() {
-            self.statement.arguments.add(v).unwrap();
-        }
-
-        for v in self.where_arguments.iter() {
-            self.statement.arguments.add(v).unwrap();
-        }
-        
         return self.db.update(self.statement).await;
     }
 }

@@ -2,7 +2,7 @@ mod builder;
 pub mod query;
 
 use anyhow::Result;
-use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult};
+use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult, postgres::PgPoolOptions};
 
 use crate::{
     Executor,
@@ -17,6 +17,30 @@ struct PgTotal {
 
 pub struct Postgres {
     db: Pool<Database>,
+}
+
+pub struct PostgresOptions {
+    pool: PgPoolOptions,
+}
+
+impl PostgresOptions {
+    pub fn new() -> Self {
+        return Self {
+            pool: PgPoolOptions::new(),
+        }
+    }
+
+    pub fn max_connections(&mut self, max: u32) -> &mut Self {
+        self.pool = self.pool.clone().max_connections(max);
+
+        return self;
+    }
+
+    pub async fn connect(self, url: &str) -> Postgres {
+        return Postgres {
+            db: self.pool.connect(url).await.unwrap(),
+        }
+    }
 }
 
 impl Postgres {
@@ -80,7 +104,11 @@ impl Executor for Postgres {
 
     async fn new(url: &str) -> Self where Self: Sized {
         return Self {
-            db: sqlx::postgres::PgPool::connect(url).await.unwrap(),
+            db: sqlx::postgres::PgPoolOptions::new()
+                .max_connections(1000)
+                .connect(url)
+                .await
+                .unwrap(),
         };
     }
     

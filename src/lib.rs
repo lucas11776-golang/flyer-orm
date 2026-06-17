@@ -1,7 +1,7 @@
 use std::{collections::HashMap, marker::PhantomData, mem::take, str, sync::LazyLock};
 
 use anyhow::{Ok, Result};
-use sqlx::{Arguments, Encode, FromRow, types::Type};
+use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
 use crate::{
     executor::Executor,
@@ -49,6 +49,10 @@ impl <E: Executor>Database<E> {
         return Self {
             executor: E::new(url).await,
         }
+    }
+
+    pub fn pool<'p>(&'p self) -> &'p Pool<E::T> {
+        return self.executor.db();
     }
 
     pub async fn transaction<'q>(&self) -> Result<Transaction<'q, E::T>> {

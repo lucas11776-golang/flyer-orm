@@ -24,7 +24,13 @@ async-std = "1.13.2"
 uuid = { version = "1.21.0", features = ["v4"] }
 dotenv = "0.15.0"
 geo = "0.33.1"
-sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate", "json"] }
+
+
+
+geo-types = { version = "0.7.19", features = ["serde"] }
+geozero = { version = "0.14", features = ["with-postgis-sqlx"] }
+
 
 [features]
 default = ["macros", "migrate", "json"]

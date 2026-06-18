@@ -1,6 +1,3 @@
-mod builder;
-pub mod query;
-
 use anyhow::Result;
 use sqlx::{Arguments, PgPool, Pool, Postgres as Database, any::AnyQueryResult, postgres::PgPoolOptions};
 
@@ -10,14 +7,15 @@ use crate::{
     query::{Pagination, QueryBuilder, QueryResult, Statement},
 };
 
+mod builder;
+pub mod query;
+pub mod decoders;
+
 #[derive(sqlx::FromRow)]
 struct PgTotal {
     total: i64
 }
 
-pub struct Postgres {
-    db: Pool<Database>,
-}
 
 pub struct PostgresOptions {
     pool: PgPoolOptions,
@@ -41,6 +39,10 @@ impl PostgresOptions {
             db: self.pool.connect(url).await.unwrap(),
         }
     }
+}
+
+pub struct Postgres {
+    db: Pool<Database>,
 }
 
 impl Postgres {

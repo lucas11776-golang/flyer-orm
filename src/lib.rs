@@ -1,4 +1,4 @@
-use std::{collections::HashMap, marker::PhantomData, mem::take, str, sync::LazyLock};
+use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
 
 use anyhow::{Ok, Result};
 use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};

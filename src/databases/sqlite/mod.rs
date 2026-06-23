@@ -98,7 +98,7 @@ impl Executor for SQLite {
             .await;
     }
 
-    async fn execute_as<'q, O>(&self, sql: String, arguments: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    async fn execute_as<'q, O>(&self, _sql: String, _arguments: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
     where
         O: for<'r> sqlx::prelude::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
     {

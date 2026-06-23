@@ -73,8 +73,15 @@ impl Serialize for Geometry {
                     map
                 }));
             },
-            GeoGeometry::Polygon(_polygon) => {
-                todo!()
+            GeoGeometry::Polygon(polygon) => {
+                return serializer.collect_seq(polygon.exterior().points().map(|coord| {
+                    let mut map = JsonMap::new();
+
+                    map.insert(String::from("lat"), coord.y().into());
+                    map.insert(String::from("lng"), coord.x().into());
+
+                    map
+                }));
             },
             GeoGeometry::MultiPoint(_multi_point) => {
                 todo!()

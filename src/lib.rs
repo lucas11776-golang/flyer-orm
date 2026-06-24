@@ -5,7 +5,7 @@ use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
 use crate::{
     executor::Executor,
-    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, query_scalar_with::QueryScaler, raw_query::RawQuery, update::Update},
+    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, query_scalar::QueryScaler, raw_query::RawQuery, update::Update},
     types::{Condition, Join, JoinType, Where}
 };
 

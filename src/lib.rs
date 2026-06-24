@@ -5,7 +5,7 @@ use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
 
 use crate::{
     executor::Executor,
-    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, raw_query::RawQuery, update::Update},
+    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, query_scalar_with::QueryScaler, raw_query::RawQuery, update::Update},
     types::{Condition, Join, JoinType, Where}
 };
 
@@ -67,6 +67,10 @@ impl <E: Executor>Database<E> {
 
     pub fn raw_query<'q>(&'q self, sql: &str) -> RawQuery<'q, E> {
         return RawQuery::new(&self.executor, String::from(sql));
+    }
+
+    pub fn query_scalar<'q>(&'q self, sql: String) -> QueryScaler<'q, E> {
+        return QueryScaler::new(&self.executor, String::from(sql));
     }
 
     pub fn query<'q>(&'q self, table: &str) -> Query<'q, E> {

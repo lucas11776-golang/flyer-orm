@@ -1,17 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{Decode, FromRow, Postgres, postgres::{PgRow, PgValueRef}};
-
-use geozero::wkb;
-use geo_types::Geometry as GeoGeometry;
-
-// // TODO: Must pass type of coord
-// use geo::CoordNum;
-// pub struct GeometryDecoder<T: CoordNum> {
-//     pub(crate) value: GeoGeometry<T>
-// }
+use geozero::{wkb};
+use geo_types::{Geometry as GeoGeometry, Coord, LineString, Point, Polygon};
 
 pub type JsonMap = HashMap<String, Value>;
 
@@ -36,11 +29,51 @@ impl <'r>FromRow<'r, PgRow> for Geometry {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "type")]
+enum PostGisFormat {
+    Point {
+        coordinates: Vec<f64>,
+    },
+    LineString {
+        coordinates: Vec<Vec<f64>>,
+    },
+    Polygon {
+        coordinates: Vec<Vec<Vec<f64>>>,
+    },
+}
+
+impl From<PostGisFormat> for GeoGeometry {
+    fn from(local: PostGisFormat) -> Self {
+        match local {
+            PostGisFormat::Point { coordinates } => {
+                GeoGeometry::Point(Point::new(coordinates[0], coordinates[1]))
+            }
+            PostGisFormat::LineString { coordinates } => {
+                GeoGeometry::LineString(LineString::new(coordinates.iter().map(|c| Coord { x: c[0], y: c[1] }).collect()))
+            }
+            PostGisFormat::Polygon { coordinates } => {
+                let rings: Vec<LineString> = coordinates.iter()
+                    .map(|ring| LineString::new(ring.iter().map(|c| Coord { x: c[0], y: c[1] }).collect()))
+                    .collect();
+                
+                let exterior = rings.get(0).cloned().unwrap_or_else(|| LineString::new(vec![]));
+                let interiors = if rings.len() > 1 { rings[1..].to_vec() } else { vec![] };
+
+                GeoGeometry::Polygon(Polygon::new(exterior, interiors))
+            }
+        }
+    }
+}
+
 impl <'de>Deserialize<'de> for Geometry {
-    fn deserialize<D>(_deserializer: D) -> std::prelude::v1::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> std::prelude::v1::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de> {
-        todo!()
+        D: serde::Deserializer<'de>    
+    {   
+        return Ok(Geometry {
+            value: PostGisFormat::deserialize(deserializer)?.into()
+        });
     }
 }
 

@@ -136,6 +136,13 @@ impl Executor for Postgres {
             .await
             .map_err(|e| e.into());
     }
+
+    async fn query_scalar_with<'q, O>(&self, _sql: String, _arguments: <Self::T as sqlx::Database>::Arguments<'q>) -> Result<Vec<O>>
+    where
+        O: for<'r> sqlx::FromRow<'r, <Self::T as sqlx::Database>::Row> + Send + Unpin + Sized
+    {
+        todo!()
+    }
     
     async fn insert<'q>(&self, statement: &'q Statement<'q, Self::T>) -> Result<()> {
         return self.execute_query(Builder::new(&statement.query).insert(), statement.arguments.clone())

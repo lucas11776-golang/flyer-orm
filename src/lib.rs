@@ -1,310 +1,309 @@
-use std::{collections::HashMap, marker::PhantomData, str, sync::LazyLock};
+use std::error::Error;
 
-use anyhow::{Ok, Result};
-use sqlx::{Arguments, Encode, FromRow, Pool, types::Type};
-
-use crate::{
-    executor::Executor,
-    query::{Order, Pagination, QueryResult, Statement, Transaction, insert::Insert, insert_as::InsertAs, query_scalar::QueryScaler, raw_query::RawQuery, update::Update},
-    types::{Condition, Join, JoinType, Where}
+use serde::Serialize;
+use sqlx::{
+    Database as SqlxDatabase,
+    IntoArguments,
+    Arguments,
+    error::BoxDynError
 };
 
-pub mod databases;
-pub mod query;
-pub mod executor;
+pub use derive::Entity;
+
+pub mod mysql;
+pub mod postgres;
+pub mod sqlite;
 pub mod types;
 
-pub(crate) static mut CONNECTIONS: LazyLock<HashMap<&str, String>> = LazyLock::new(|| HashMap::new());
+pub trait Entity {}
 
-pub struct DB;
+pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
-impl DB {
-    #[allow(static_mut_refs)]
-    pub fn add(connection: &'static str, url: &str) {
-        unsafe { CONNECTIONS.insert(connection, url.to_string()); }
-    }
+pub trait Bindable<DB: SqlxDatabase>: Send + 'static {
+    fn bind_to<'q>(self: Box<Self>, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError>;
+}
 
-    #[allow(static_mut_refs)]
-    pub fn remove(connection: &str) {
-        unsafe { CONNECTIONS.remove(connection); }
-    }
-
-    #[allow(static_mut_refs)]
-    pub async fn db<E: Executor>(connection: &str) -> Database::<E> {
-        return unsafe { Database::new(CONNECTIONS.get(connection).unwrap()).await };
-    }
-
-    pub async fn db_with_url<E: Executor>(url: &str) -> Database::<E> {
-        return Database::new(url).await;
+impl<DB, T> Bindable<DB> for T
+where
+    DB: SqlxDatabase,
+    T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Send + 'static,
+{
+    #[inline]
+    fn bind_to<'q>(self: Box<Self>, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError> {
+        return args.add(*self);
     }
 }
 
-#[derive(Debug)]
-pub struct Database<E: Executor> {
-    executor: E,
+#[derive(Clone, Copy)]
+pub enum Connector {
+    And,
+    Or,
 }
 
-impl <E: Executor>Database<E> {
-    pub async fn new(url: &str) -> Self {
-        return Self {
-            executor: E::new(url).await,
+pub enum WhereClause<DB: SqlxDatabase> {
+    Simple {
+        connector: Connector,
+        column: String,
+        operator: String,
+        value: Box<dyn Bindable<DB>>,
+    },
+    Group {
+        connector: Connector,
+        conditions: Vec<WhereClause<DB>>,
+    },
+}
+
+impl<DB: SqlxDatabase> WhereClause<DB> {
+    fn connector(&self) -> Connector {
+        match self {
+            WhereClause::Simple { connector, .. } => *connector,
+            WhereClause::Group { connector, .. } => *connector,
         }
     }
+}
 
-    pub fn pool<'p>(&'p self) -> &'p Pool<E::T> {
-        return self.executor.db();
+// Clauses
+
+pub struct WhereGroup<DB: SqlxDatabase> {
+    pub conditions: Vec<WhereClause<DB>>,
+}
+
+impl<DB: SqlxDatabase> WhereGroup<DB> {
+    pub fn new() -> Self {
+        return Self {
+            conditions: Vec::new()
+        };
     }
 
-    pub async fn transaction<'q>(&self) -> Result<Transaction<'q, E::T>> {
-        return Ok(Transaction::new(self.executor.db().begin().await.unwrap()));
+    pub fn r#where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<DB>,
+    {
+        self.conditions.push(WhereClause::Simple {
+            connector: Connector::And,
+            column: c.into(),
+            operator: o.into(),
+            value: Box::new(v),
+        });
+        self
     }
 
-    pub async fn execute<'q>(&'q self, sql: &str) -> Result<impl QueryResult>  {
-        return self.executor
-            .execute(String::from(sql), Default::default())
-            .await;
+    pub fn and_where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<DB>,
+    {
+        self.r#where(c, o, v)
     }
 
-    pub fn raw_query<'q>(&'q self, sql: &str) -> RawQuery<'q, E> {
-        return RawQuery::new(&self.executor, String::from(sql));
+    pub fn or_where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<DB>,
+    {
+        self.conditions.push(WhereClause::Simple {
+            connector: Connector::Or,
+            column: c.into(),
+            operator: o.into(),
+            value: Box::new(v),
+        });
+        self
     }
+}
 
-    pub fn query_scalar<'q>(&'q self, sql: String) -> QueryScaler<'q, E> {
-        return QueryScaler::new(&self.executor, String::from(sql));
-    }
 
-    pub fn query<'q>(&'q self, table: &str) -> Query<'q, E> {
-        return Query::new(table, &self.executor);
-    }
 
-    pub async fn close(&self) -> Result<()> {
-        return Ok(self.executor.db().close().await);
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Pagination<Entity> {
+    pub total: u64,
+    pub page: u64,
+    pub per_page: u64,
+    pub items: Vec<Entity>
+}
+
+pub struct Connection<E: Executor> {
+    inner: Box<E>
+}
+
+// pub fn 
+
+#[allow(async_fn_in_trait)]
+pub trait Executor {
+    type DB: SqlxDatabase;
+    // async fn new(url: &str) -> Self where Self: Sized;
+
+    // fn to_sql<'q>(&self) -> String;
+
+    // async fn execute_as<'q, O>(&self, sql: String) -> Result<Vec<O>>;
+
+    // async fn insert<'q>(&self) -> Result<()>;
+
+    // async fn update<'q>(&self) -> Result<()>;
+
+    // async fn count<'q>(&self) -> Result<u64>;
+
+    // async fn delete<'q>(&self) -> Result<()>;
+
+    // async fn insert_as<'q, O>(&self) -> Result<O>;
+
+    // async fn query_all<'q, O>(&self, sql: &str) -> Result<Vec<O>>;
+
+    // async fn query_one<'q, O>(&self, sql: &str) -> Result<O>;
+
+    // async fn all<'q, O>(&self) -> Result<Vec<O>>;
+
+    async fn first<'e, O: Entity>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
+
+    async fn get<'e, O: Entity>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum JoinType {
+    InnerJoin,
+    LeftJoin,
+    RightJoin,
+    FullOuterJoin,
+    CrossJoin
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Join {
+    pub table: String,
+    pub column: String,
+    pub operator: String,
+    pub column_table: String, 
+    pub join_type: JoinType
+}
+
+pub(crate) struct Having<DB: SqlxDatabase> {
+    pub column: String,
+    pub operator: String,
+    pub value: Box<dyn Bindable<DB>>
+}
+
+#[derive(Clone, Debug)]
+pub enum OrderType {
+    ASC,
+    DESC
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Order {
+    pub column: String,
+    pub order: OrderType,
+}
+
+pub struct Statement<DB: SqlxDatabase> {
+    pub table: String,
+    pub fields: Vec<String>,
+    pub join: Vec<Join>,
+    pub conditions: Vec<WhereClause<DB>>,
+    pub group_by: Option<String>,
+    pub having: Option<Having<DB>>,
+    pub order_by: Option<Vec<Order>>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+impl <DB: SqlxDatabase>Statement<DB> {
+    pub fn new(table: impl Into<String>) -> Self {
+        return Self {
+            table: table.into(),
+            fields: Vec::new(),
+            join: Vec::new(),
+            conditions: Vec::new(),
+            group_by: None,
+            having: None,
+            order_by: None,
+            limit: None,
+            offset: None,
+        };
     }
 }
 
 pub struct Query<'q, E: Executor> {
-    db: &'q E,
-    statement: Statement<'q, E::T>,
-    _marker: PhantomData<E>
+    executor: &'q E,
+    statement: Statement<E::DB>,
 }
 
-impl <'q, E>Query<'q, E>
-where
-    E: Executor
-{
-    pub fn new(table: &str, exc: &'q E) -> Self {
+impl <'q, E: Executor>Query<'q, E> {
+    pub fn new(executor: &'q E, table: impl Into<String>) -> Self {
         return Self {
-            db: exc,
-            statement: Statement::<E::T>::new(table),
-            _marker: PhantomData,
-        }
+            executor: executor,
+            statement: Statement::new(table),
+        };
     }
 
-    pub fn table(&mut self, name: &'q str) -> &mut Self {
-        self.statement.query.table = name.to_string();
-
+    pub fn select(&mut self, fields: &[&str]) -> &mut Self {
+        self.statement.fields = fields
+            .iter()
+            .map(|f| f.to_string())
+            .collect();
+        
         return self;
     }
 
-    pub fn select(&mut self, columns: Vec<&str>) -> &mut Self {
-        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
-
-        return self;
-    }
-
-    fn where_push<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, condition: Option<Condition>, column: &str, operator: &str, val: T) -> &mut Self {
-        self.statement.query.where_queries.push(Where {
-            condition: condition,
-            column: Some(String::from(column)),
-            operator: Some(String::from(operator)),
-            group: None
-        });
-        self.statement.arguments.add(val).unwrap();
-        return self;
-    }
-
-    pub fn r#where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        if self.statement.query.where_queries.len() != 0 {
-            return self.and_where(column, operator, val);
-        }
-        return self.where_push(None, column, operator, val);
-    }
-
-    pub fn and_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        if self.statement.query.where_queries.len() == 0 {
-            return self.r#where(column, operator, val);
-        }
-        return self.where_push(Some(Condition::AND), column, operator, val);
-    }
-
-    pub fn or_where<T: 'q + Encode<'q, E::T> + Type<E::T>>(&mut self, column: &str, operator: &str, val: T) -> &mut Self {
-        if self.statement.query.where_queries.len() == 0 {
-            return self.r#where(column, operator, val);
-        }
-        return self.where_push(Some(Condition::OR), column, operator, val);
-    }
-
-    // pub fn where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
-    //     return self;
-    // }
-
-    // pub fn and_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
-    //     return self;
-    // }
-
-    // pub fn or_where_group(&mut self, callback: fn(group: WhereQueryGroup<'q, E::T>) -> WhereQueryGroup<'q, E::T>) -> &mut Self {        
-    //     return self;
-    // }
-
-    pub fn order_by(&mut self, column: &str, order: Order) -> &mut Self {
-        if self.statement.query.order_by.is_none() {
-            self.statement.query.order_by = Some(vec![types::Order {
-                column: column.to_string(),
-                order: order
-            }]);
-
-            return self;
-        }
-
-        self.statement.query.order_by.as_mut().unwrap().push(types::Order {
-            column: column.to_string(),
-            order: order
+    pub fn r#where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<E::DB>,
+    {
+        self.statement.conditions.push(WhereClause::Simple {
+            connector: Connector::And,
+            column: c.into(),
+            operator: o.into(),
+            value: Box::new(v),
         });
 
         return self;
     }
 
-    fn join_push(&mut self, join_type: JoinType, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        self.statement.query.join.push(Join {
-            table: String::from(table),
-            column: String::from(column),
-            operator: String::from(operator),
-            column_table: String::from(column_table),
-            join_type: join_type
+    pub fn and_where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<E::DB>,
+    {
+        return self.r#where(c, o, v);
+    }
+
+    pub fn or_where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<E::DB>,
+    {
+        self.statement.conditions.push(WhereClause::Simple {
+            connector: Connector::Or,
+            column: c.into(),
+            operator: o.into(),
+            value: Box::new(v),
         });
-        return self;
-    }
-
-    pub fn join(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        return self.join_push(JoinType::LeftJoin , table, column, operator, column_table);
-    }
-
-    pub fn join_inner(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        return self.join_push(JoinType::InnerJoin , table, column, operator, column_table);
-    }
-
-    pub fn join_right(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        return self.join_push(JoinType::RightJoin , table, column, operator, column_table);
-    }
-
-    pub fn join_full_outer(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        return self.join_push(JoinType::FullOuterJoin , table, column, operator, column_table);
-    }
-
-    pub fn join_cross(&mut self, table: &str, column: &str, operator: &str, column_table: &str) -> &mut Self {
-        return self.join_push(JoinType::CrossJoin , table, column, operator, column_table);
-    }
-
-    pub fn limit(&mut self, limit: i64) -> &mut Self {
-        self.statement.query.limit = Some(limit);
 
         return self;
     }
 
-    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
-        self.statement.arguments.add(value).unwrap();
+    pub fn where_group<F>(&mut self, callback: F) -> &mut Self 
+    where
+        F: FnOnce(&mut WhereGroup<E::DB>),
+    {
+        let mut group = WhereGroup::new();
+
+        callback(&mut group);
+        
+        self.statement.conditions.push(WhereClause::Group {
+            connector: Connector::And,
+            conditions: group.conditions,
+        });
 
         return self;
     }
 
-    pub async fn query<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
+    pub async fn get<'c, O>(&mut self) -> Result<Vec<O>>
     where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as SqlxDatabase>::Row> + Send + Unpin, 
+        for<'a> <E::DB as SqlxDatabase>::Arguments<'a>: IntoArguments<'a, E::DB>,
     {
-        return Ok(self.db.query_all::<O, T>(sql, args).await.unwrap());
-    }
-
-    pub async fn query_all<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        return Ok(self.db.query_all::<O, T>(sql, args).await.unwrap());
-    }
-
-    pub async fn query_one<O, T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, sql: &str, args: Vec<T>) -> Result<O>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        return Ok(self.db.query_one::<O, T>(sql, args).await.unwrap())
-    }
-
-    pub fn insert_as<O>(&'q mut self, columns: Vec<&str>) -> InsertAs<'q, E, O>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
-
-        return InsertAs::new(self.db, &mut self.statement);
-    }
-
-    pub fn insert(&'q mut self, columns: Vec<&str>) -> Insert<'q, E> {
-        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
-
-        return Insert::new(&self.db, &mut self.statement);
-    }
-
-    pub fn update(&'q mut self, columns: Vec<&str>) -> Update<'q, E> {
-        self.statement.query.select = columns.iter().map(|c| c.to_string()).collect();
-
-        return Update::new(&self.db, &mut self.statement);
-    }
-
-    pub async fn delete(&'q mut self) -> Result<()>
-    {
-        return self.db.delete(&self.statement).await;
-    }
-
-    pub async fn first<O>(&'q mut self) -> Result<O>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        return self.db.first::<O>(&self.statement).await;
-    }
-
-    pub async fn all<O>(&'q mut self) -> Result<Vec<O>>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized
-    {
-        return self.db.all::<O>(&self.statement).await;
-    }
-
-    pub async fn count(&'q mut self) -> Result<u64> {
-        return self.db.count(&self.statement).await;
-    }
-
-    pub async fn exists(&'q mut self) -> Result<bool> {
-        return self.db.count(&self.statement).await.map(|t| t > 0);
-    }
-
-    pub async fn paginate<O>(&'q mut self, limit: i64, page: i64) -> Result<Pagination<O>>
-    where
-        O: for<'r> FromRow<'r, <E::T as sqlx::Database>::Row> + Send + Unpin + Sized,
-        i64: Encode<'q, E::T> + Type<E::T>
-    {
-        self.statement.query.limit = Some(limit);
-        self.statement.query.offset = Some(page); // TODO: calc offset using offset
-
-        self.statement.arguments.add(limit).unwrap();
-        self.statement.arguments.add(if page > 1 {
-            (page - 1) * limit 
-        } else {
-            0
-        }).unwrap();
-
-        return self.db.paginate::<O>(&self.statement).await;
-    }
-
-    pub fn to_sql(&'q mut self) -> String {
-        return self.db.to_sql(&self.statement);
+        return self
+            .executor
+            .get(&self.statement)
+            .await;
     }
 }

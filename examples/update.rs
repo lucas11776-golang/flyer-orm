@@ -1,45 +1,6 @@
 use anyhow::Result;
-use flyer_orm::{
-    Database,
-    databases::sqlite::SQLite
-};
-use serde::Serialize;
-
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct User {
-    pub id: i64,
-    pub name: String,
-    pub status: String,
-}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let db = Database::<SQLite>::new(":memory:").await;
-
-    // Set up schema and initial data
-    db.raw_query("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, status TEXT)").execute().await?;
-    db.raw_query("INSERT INTO users (name, status) VALUES ('John', 'inactive')").execute().await?;
-
-    println!("User created with status: inactive");
-
-    // Perform an update
-    db.query("users")
-        .update(vec!["status"])
-        .bind("active")
-        .r#where("name", "=", "John")
-        .execute()
-        .await
-        .unwrap();
-
-    // Verify the update
-    let updated = db.query("users")
-        .r#where("name", "=", "John")
-        .first::<User>()
-        .await?;
-
-    assert_eq!("active", updated.status);
-
-    println!("User updated with status: {}", updated.status);
-
     return Ok(());
 }

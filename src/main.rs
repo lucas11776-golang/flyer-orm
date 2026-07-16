@@ -1,71 +1,62 @@
-use std::env;
-
 use anyhow::Result;
-use flyer_orm::{Database, databases::{postgres::Postgres, sqlite::SQLite}};
+use flyer_orm::{Connection, Executor, Query, postgres::Postgres};
+use once_cell::sync::OnceCell;
+use sqlx::PgPool;
+use flyer_orm::Entity;
 
 
-// use sqlx::postgres::types::
+// pub struct Database {
+//     dashboard: Connection<Postgres>,
+//     client: Connection<Postgres>,
+// }
 
+pub(crate) static mut GLOBAL_SERVER: OnceCell<Box<Postgres>> = OnceCell::new();
 
-#[derive(Debug, sqlx::FromRow)]
-pub struct Project {
-    // pub id: String,
-    pub name: String
+pub struct Database {
+    inner: Postgres
 }
 
+impl Database {
+    #[allow(static_mut_refs)]
+    pub async fn init() {
+        unsafe {
+            GLOBAL_SERVER
+                .set(Box::new(Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await))
+                .map_err(|_| "global state already initialized")
+                .unwrap();
+        }
+    }
 
-
-#[derive(Debug, sqlx::FromRow)]
-pub struct User {
-    // pub id: Uuid,
-    pub email: String
-}
-
-
-#[derive(Debug, sqlx::FromRow)]
-pub struct Subscription {
-    pub id: i32,
-    // pub created_at: i8,
-    pub email: String
-}
-
-
-pub struct Connection;
-
-impl Connection {
-    // pub async fn db() -> Database<SQLite> {
-    //     return Database::<SQLite>::new("./database.sqlite").await;
-    // }
-    pub async fn db() -> Database<Postgres> {
-        return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
+    #[allow(static_mut_refs)]
+    pub fn query<'q>(table: impl Into<String>) -> Query<'q, Postgres> {
+        return unsafe {
+            Query::new(GLOBAL_SERVER.get_mut().unwrap().as_mut(), table)
+        };
     }
 }
 
+
+#[derive(Entity, Debug)]
+pub struct User {
+    pub first_name: String,
+    pub last_name: String,
+    pub notifications: bool,
+}
+
+
 #[tokio::main]
+async fn main() -> Result<()> {
+    Database::init().await;
 
- async fn main() -> Result<()> {
-    dotenv::from_path(".env").unwrap();
-
-    let db = Connection::db().await;
-
-    // db.query("users")
-    //     .update(vec!["first_name", "last_name"])
-    //     .bind("Jeo")
-    //     .bind("Deo")
-    //     .r#where("email", "=", "thembangubeni04@gmail.com")
-    //     .execute()
-    //     .await
-    //     .unwrap();
-
-    let subscription = db.query("subscription")
-        .insert_as::<Subscription>(vec!["email"])
-        .bind("thembangubeni04@gmail.com")
-        .execute()
+    let users = Database::query("users")
+        .r#where("email", "=", "thembangubeni04@gmail.com")
+        .get::<User>()
         .await
         .unwrap();
 
-
-    println!("INSERTED -> {:?}", subscription);
+    for user in users {
+        println!("\r\n\r\n\r\nUser:{:?}\r\n\r\n\r\n", user);
+    }
 
     Ok(())
 }

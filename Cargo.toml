@@ -14,6 +14,8 @@ build = "build.rs"
 git2 = "0.20.4"
 
 [dependencies]
+derive = { path = "./derive" }
+
 anyhow = "1.0.102"
 serde = "1.0.228"
 serde_json = "1.0.149"
@@ -26,66 +28,6 @@ dotenv = "0.15.0"
 geo = "0.33.1"
 sqlx = { version = "0.8.6", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate", "json"] }
 
-
-
 geo-types = { version = "0.7.19", features = ["serde"] }
 geozero = { version = "0.14", features = ["with-postgis-sqlx"] }
-
-
-[features]
-default = ["macros", "migrate", "json"]
-
-# --- Database Drivers ---
-any = ["sqlx/any"]
-postgres = ["sqlx/postgres"]
-mysql = ["sqlx/mysql"]
-sqlite = ["sqlx/sqlite"]
-
-# --- Runtimes (App must pick ONE) ---
-runtime-tokio = ["sqlx/runtime-tokio"]
-runtime-async-std = ["sqlx/runtime-async-std"]
-
-# --- TLS Providers (App must pick ONE if using Network DBs) ---
-tls-native-tls = ["sqlx/tls-native-tls"]
-tls-rustls = ["sqlx/tls-rustls"]
-tls-rustls-aws-lc-rs = ["sqlx/tls-rustls-aws-lc-rs"]
-tls-rustls-ring = ["sqlx/tls-rustls-ring"]
-
-# --- Core Functionality ---
-macros = ["sqlx/macros"]
-migrate = ["sqlx/migrate"]
-derive = ["sqlx/derive"]
-
-# --- Type Integrations ---
-json = ["sqlx/json"]
-uuid = ["sqlx/uuid"]
-chrono = ["sqlx/chrono"]
-time = ["sqlx/time"]
-bigdecimal = ["sqlx/bigdecimal"]
-rust_decimal = ["sqlx/rust_decimal"]
-ipnetwork = ["sqlx/ipnetwork"]
-ipnet = ["sqlx/ipnet"]
-mac_address = ["sqlx/mac_address"]
-bit-vec = ["sqlx/bit-vec"]
-bstr = ["sqlx/bstr"]
-
-# --- SQLite Specifics ---
-sqlite-unbundled = ["sqlx/sqlite-unbundled"]
-sqlite-preupdate-hook = ["sqlx/sqlite-preupdate-hook"]
-
-# --- MySQL Specifics ---
-
-# --- Convenience Bundles ---
-all-databases = ["mysql", "sqlite", "postgres", "any"]
-full = [
-    "all-databases",
-    "macros",
-    "migrate",
-    "json",
-    "uuid",
-    "chrono",
-    "time",
-    "rust_decimal",
-    "bigdecimal",
-    "derive"
-]
+once_cell = "1.21.4"

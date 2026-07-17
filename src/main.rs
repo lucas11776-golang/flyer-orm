@@ -1,7 +1,6 @@
 use anyhow::Result;
-use flyer_orm::{Connection, Executor, Query, postgres::Postgres};
+use flyer_orm::{Order, Query, postgres::Postgres};
 use once_cell::sync::OnceCell;
-use sqlx::PgPool;
 use flyer_orm::Entity;
 
 
@@ -13,7 +12,7 @@ use flyer_orm::Entity;
 pub(crate) static mut GLOBAL_SERVER: OnceCell<Box<Postgres>> = OnceCell::new();
 
 pub struct Database {
-    inner: Postgres
+    // inner: Postgres
 }
 
 impl Database {
@@ -40,7 +39,9 @@ impl Database {
 pub struct User {
     pub first_name: String,
     pub last_name: String,
+    pub email: String,
     pub notifications: bool,
+    // pub token: String,
 }
 
 
@@ -48,14 +49,36 @@ pub struct User {
 async fn main() -> Result<()> {
     Database::init().await;
 
-    let users = Database::query("users")
-        .r#where("email", "=", "thembangubeni04@gmail.com")
+    // let users = Database::query("users")
+    //     // .join("password_resets", "users.id", "=", "password_resets.user_id")
+    //     // .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     // .or_where("email", "=", "themba@gmail.com")
+    //     .where_group(|group| {
+    //         group
+    //             .r#where("email", "=", "thembangubeni04@gmail.com")
+    //             .or_where("email", "=", "themba@gmail.com");
+    //     })
+    //     // .group_by("password_resets.token")
+    //     .get::<User>()
+    //     .await
+    //     .unwrap();
+
+
+    let users = Database::query("employees")
+        .select(vec!["department_id", "COUNT(employee_id) AS total_employees", "AVG(salary) AS avg_salary"])
+        .group_by("department_id")
+        .having("COUNT(employee_id)", ">", 5)
+        .and_having("AVG(salary)", ">", "50000")
+        .order_by("avg_salary", Order::ASC)
+        .order_by("total_employees", Order::DESC)
+        .limit(1)
+        .offset(1)
         .get::<User>()
         .await
         .unwrap();
 
     for user in users {
-        println!("\r\n\r\n\r\nUser:{:?}\r\n\r\n\r\n", user);
+        println!("\r\nUser: {:?}\r\n", user);
     }
 
     Ok(())

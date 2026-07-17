@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, i64};
 
 use serde::Serialize;
 use sqlx::{
@@ -20,17 +20,17 @@ pub trait Entity {}
 pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 pub trait Bindable<DB: SqlxDatabase>: Send + 'static {
-    fn bind_to<'q>(self: Box<Self>, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError>;
+    fn bind_to<'q>(&self, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError>;
 }
 
 impl<DB, T> Bindable<DB> for T
 where
     DB: SqlxDatabase,
-    T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Send + 'static,
+    T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Clone + Send + 'static,
 {
     #[inline]
-    fn bind_to<'q>(self: Box<Self>, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError> {
-        return args.add(*self);
+    fn bind_to<'q>(&self, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError> {
+        return args.add(self.clone());
     }
 }
 
@@ -40,8 +40,17 @@ pub enum Connector {
     Or,
 }
 
+impl ToString for Connector {
+    fn to_string(&self) -> String {
+        return match self {
+            Connector::And => String::from("AND"),
+            Connector::Or  => String::from("OR"),
+        }
+    }
+}
+
 pub enum WhereClause<DB: SqlxDatabase> {
-    Simple {
+    Clause {
         connector: Connector,
         column: String,
         operator: String,
@@ -56,7 +65,7 @@ pub enum WhereClause<DB: SqlxDatabase> {
 impl<DB: SqlxDatabase> WhereClause<DB> {
     fn connector(&self) -> Connector {
         match self {
-            WhereClause::Simple { connector, .. } => *connector,
+            WhereClause::Clause { connector, .. } => *connector,
             WhereClause::Group { connector, .. } => *connector,
         }
     }
@@ -79,7 +88,7 @@ impl<DB: SqlxDatabase> WhereGroup<DB> {
     where
         V: Bindable<DB>,
     {
-        self.conditions.push(WhereClause::Simple {
+        self.conditions.push(WhereClause::Clause {
             connector: Connector::And,
             column: c.into(),
             operator: o.into(),
@@ -99,7 +108,7 @@ impl<DB: SqlxDatabase> WhereGroup<DB> {
     where
         V: Bindable<DB>,
     {
-        self.conditions.push(WhereClause::Simple {
+        self.conditions.push(WhereClause::Clause {
             connector: Connector::Or,
             column: c.into(),
             operator: o.into(),
@@ -119,9 +128,9 @@ pub struct Pagination<Entity> {
     pub items: Vec<Entity>
 }
 
-pub struct Connection<E: Executor> {
-    inner: Box<E>
-}
+// pub struct Connection<E: Executor> {
+//     inner: Box<E>
+// }
 
 // pub fn 
 
@@ -160,7 +169,8 @@ pub trait Executor {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum JoinType {
+pub enum JoinType {
+    Join,
     InnerJoin,
     LeftJoin,
     RightJoin,
@@ -168,8 +178,21 @@ pub(crate) enum JoinType {
     CrossJoin
 }
 
+impl ToString for JoinType {
+    fn to_string(&self) -> String {
+        return match self {
+            JoinType::Join => "JOIN".into(),
+            JoinType::LeftJoin => "LEFT JOIN".into(),
+            JoinType::RightJoin => "RIGHT JOIN".into(),
+            JoinType::InnerJoin => "INNER JOIN".into(),
+            JoinType::FullOuterJoin => "FULL OUTER JOIN".into(),
+            JoinType::CrossJoin => "CROSS JOIN".into(),
+        };
+    }
+}
+
 #[derive(Clone, Debug)]
-pub(crate) struct Join {
+pub struct Join {
     pub table: String,
     pub column: String,
     pub operator: String,
@@ -177,22 +200,49 @@ pub(crate) struct Join {
     pub join_type: JoinType
 }
 
-pub(crate) struct Having<DB: SqlxDatabase> {
+pub struct Having<DB: SqlxDatabase> {
     pub column: String,
     pub operator: String,
-    pub value: Box<dyn Bindable<DB>>
+    pub value: Box<dyn Bindable<DB>>,
+    pub connector: Connector,
 }
 
 #[derive(Clone, Debug)]
-pub enum OrderType {
+pub enum Order {
     ASC,
     DESC
 }
 
+impl ToString for Order {
+    fn to_string(&self) -> String {
+        return match self {
+            Order::ASC  => "ASC".into(),
+            Order::DESC => "DESC".into(),
+        };
+    }
+}
+
 #[derive(Clone, Debug)]
-pub(crate) struct Order {
+pub struct OrderValue {
     pub column: String,
-    pub order: OrderType,
+    pub order: Order,
+}
+
+impl OrderValue {
+    pub fn new(column: impl Into<String>, order: Order) -> Self {
+        return Self {
+            column: column.into(),
+            order: order
+        };
+    }
+}
+
+pub struct Limit<DB: SqlxDatabase> {
+    pub value: Box<dyn Bindable<DB>>,
+}
+
+pub struct Offset<DB: SqlxDatabase> {
+    pub value: Box<dyn Bindable<DB>>,
 }
 
 pub struct Statement<DB: SqlxDatabase> {
@@ -201,10 +251,10 @@ pub struct Statement<DB: SqlxDatabase> {
     pub join: Vec<Join>,
     pub conditions: Vec<WhereClause<DB>>,
     pub group_by: Option<String>,
-    pub having: Option<Having<DB>>,
-    pub order_by: Option<Vec<Order>>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
+    pub having: Vec<Having<DB>>,
+    pub order_by: Vec<OrderValue>,
+    pub limit: Option<Limit<DB>>,
+    pub offset: Option<Offset<DB>>,
 }
 
 impl <DB: SqlxDatabase>Statement<DB> {
@@ -215,8 +265,8 @@ impl <DB: SqlxDatabase>Statement<DB> {
             join: Vec::new(),
             conditions: Vec::new(),
             group_by: None,
-            having: None,
-            order_by: None,
+            having: Vec::new(),
+            order_by: Vec::new(),
             limit: None,
             offset: None,
         };
@@ -236,7 +286,7 @@ impl <'q, E: Executor>Query<'q, E> {
         };
     }
 
-    pub fn select(&mut self, fields: &[&str]) -> &mut Self {
+    pub fn select(&mut self, fields: Vec<&str>) -> &mut Self {
         self.statement.fields = fields
             .iter()
             .map(|f| f.to_string())
@@ -245,11 +295,87 @@ impl <'q, E: Executor>Query<'q, E> {
         return self;
     }
 
+    fn join_push(
+        &mut self,
+        join_type: JoinType,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self {
+        self.statement.join.push(Join {
+            table: table.into(),
+            column: column.into(),
+            operator: operator.into(),
+            column_table: column_table.into(),
+            join_type: join_type
+        });
+        return self;
+    }
+
+    pub fn join(
+        &mut self,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self {
+        return self.join_push(JoinType::Join , table, column, operator, column_table);
+    }
+
+    pub fn join_right(
+        &mut self,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self
+    {
+        return self.join_push(JoinType::RightJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_left(
+        &mut self,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self
+    {
+        return self.join_push(JoinType::LeftJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_inner(
+        &mut self,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self
+    {
+        return self.join_push(JoinType::InnerJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_full_outer(
+        &mut self,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self
+    {
+        return self.join_push(JoinType::FullOuterJoin , table, column, operator, column_table);
+    }
+
+    pub fn join_cross(
+        &mut self,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>) -> &mut Self
+    {
+        return self.join_push(JoinType::CrossJoin , table, column, operator, column_table);
+    }
+
     pub fn r#where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
     where
         V: Bindable<E::DB>,
     {
-        self.statement.conditions.push(WhereClause::Simple {
+        self.statement.conditions.push(WhereClause::Clause {
             connector: Connector::And,
             column: c.into(),
             operator: o.into(),
@@ -270,7 +396,7 @@ impl <'q, E: Executor>Query<'q, E> {
     where
         V: Bindable<E::DB>,
     {
-        self.statement.conditions.push(WhereClause::Simple {
+        self.statement.conditions.push(WhereClause::Clause {
             connector: Connector::Or,
             column: c.into(),
             operator: o.into(),
@@ -296,6 +422,81 @@ impl <'q, E: Executor>Query<'q, E> {
         return self;
     }
 
+    pub fn group_by(&mut self, column: impl Into<String>) -> &mut Self {
+        self.statement.group_by = Some(column.into());
+
+        return self;
+    }
+
+    fn having_push<V>(
+        &mut self,
+        connector: Connector,
+        column: impl Into<String>,
+        operator: impl Into<String>, value: V) -> &mut Self
+    where
+        V: Bindable<E::DB>
+    {
+        self
+            .statement
+            .having
+            .push(Having {
+                column: column.into(),
+                operator: operator.into(),
+                value: Box::new(value),
+                connector,
+            });
+
+        return self;
+    }
+
+    pub fn having<V>(&mut self, column: impl Into<String>, operator: impl Into<String>, value: V) -> &mut Self
+    where
+        V: Bindable<E::DB>
+    {
+        return self.having_push(Connector::And, column, operator, value);
+    }
+
+    pub fn and_having<V>(&mut self, column: impl Into<String>, operator: impl Into<String>, value: V) -> &mut Self
+    where
+        V: Bindable<E::DB>
+    {
+        return self.having_push(Connector::And, column, operator, value);
+    }
+
+    pub fn or_having<V>(&mut self, column: impl Into<String>, operator: impl Into<String>, value: V) -> &mut Self
+    where
+        V: Bindable<E::DB>
+    {
+        return self.having_push(Connector::Or, column, operator, value);
+    }
+
+    pub fn order_by(&mut self, column: impl Into<String>, order: Order) -> &mut Self {
+        self
+            .statement
+            .order_by
+            .push(OrderValue::new(column, order));
+        
+        return self;
+    }
+
+    pub fn limit<V>(&mut self, limit: V) -> &mut Self
+    where
+        V: Bindable<E::DB>
+    {
+        self.statement.limit = Some(Limit { value: Box::new(limit) });
+
+        return self;
+    }
+
+    pub fn offset<V>(&mut self, offset: V) -> &mut Self 
+    where
+        V: Bindable<E::DB>
+    {
+        self.statement.offset = Some(Offset { value: Box::new(offset) });
+
+        return self;
+    }
+
     pub async fn get<'c, O>(&mut self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as SqlxDatabase>::Row> + Send + Unpin, 
@@ -307,3 +508,5 @@ impl <'q, E: Executor>Query<'q, E> {
             .await;
     }
 }
+
+

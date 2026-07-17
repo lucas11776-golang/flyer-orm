@@ -1,11 +1,10 @@
 use sqlx::{
-    Database as SqlxDatabase,
-    PgPool,
-    Postgres as Database,
-    postgres::PgArguments
+    Arguments, Database as SqlxDatabase, PgPool, Postgres as Database,
 };
 
-use crate::{Entity, Executor};
+use crate::{Entity, Executor, postgres::compile::Builder};
+
+mod compile;
 
 pub struct Postgres {
     pool: PgPool
@@ -34,8 +33,9 @@ impl Executor for Postgres {
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin, 
     {
-        let (sql, args) = ("SELECT * FROM users", PgArguments::default());
-        let results = sqlx::query_as_with::<Self::DB, O, _>(&sql, args)
+        let (sql, arguments) = Builder::new(statement).query();
+
+        let results = sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_all(&self.pool)
             .await?;
         return Ok(results);

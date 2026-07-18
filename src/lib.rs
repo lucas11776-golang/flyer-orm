@@ -258,6 +258,8 @@ pub struct Statement<DB: SqlxDatabase> {
     pub order_by: Vec<OrderValue>,
     pub limit: Option<Limit<DB>>,
     pub offset: Option<Offset<DB>>,
+    pub _limit: u64,
+    pub _page: u64,
 }
 
 impl <DB: SqlxDatabase>Statement<DB> {
@@ -272,6 +274,8 @@ impl <DB: SqlxDatabase>Statement<DB> {
             order_by: Vec::new(),
             limit: None,
             offset: None,
+            _limit: 0,
+            _page: 0,
         };
     }
 }

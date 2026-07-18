@@ -126,7 +126,6 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         return self;
     }
 
-    // Optimization: Changed &Vec to &[Having]
     pub fn having(&mut self, having: &[Having<DB>]) -> &mut Self {
         if having.is_empty() {
             return self;
@@ -147,8 +146,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
         return self;
     }
-
-    // Optimization: Changed &Vec to &[OrderValue]
+    
     pub fn order_by(&mut self, order_by: &[OrderValue]) -> &mut Self {
         if order_by.is_empty() {
             return self;
@@ -185,7 +183,6 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
         return self;
     }
-
 
     pub fn compile(&mut self) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
         (mem::take(&mut self.sql), mem::take(&mut self.arguments))

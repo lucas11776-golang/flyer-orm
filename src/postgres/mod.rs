@@ -3,9 +3,14 @@ use sqlx::{
     PgPool,
 };
 
-use crate::{Entity, Executor, postgres::builder::QueryBuilder};
+use crate::{Entity, Executor, Pagination, postgres::builder::QueryBuilder};
 
 mod builder;
+
+#[derive(crate::Entity)]
+struct Total {
+    pub total: i64,
+}
 
 pub struct Postgres {
     pool: PgPool
@@ -68,9 +73,31 @@ impl Executor for Postgres {
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
     {
-        // let total = Builder::new(false)
-        //     .
+        let items: Vec<O> = self
+            .get(statement)
+            .await
+            .unwrap();
 
-        todo!()
+        let (sql, arguments) = QueryBuilder::new(false)
+            .select(&vec!["COUNT(*) AS total".into()])
+            .from(&statement.table)
+            .joins(&statement.join)
+            .conditions(&statement.conditions, true)
+            .group_by(&statement.group_by)
+            .having(&statement.having)
+            .compile();
+
+        let total =  sqlx::query_as_with::<Self::DB, Total, _>(&sql, arguments)
+            .fetch_one(&self.pool)
+            .await
+            .unwrap();
+
+        // TODO: need to get limit, page as u64 in Bindable<>
+        return Ok(Pagination {
+            total: total.total as u64,
+            page: statement._page,
+            per_page: 10,
+            items: items,
+        });
     }
 }

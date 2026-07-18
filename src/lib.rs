@@ -138,21 +138,32 @@ pub trait Executor {
 
     fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String;
 
-    // async fn execute_as<'q, O>(&self, sql: String) -> Result<Vec<O>>;
+    // TODO: missing arguments
+    async fn execute_as<'q, O>(&self, sql: String) -> Result<Vec<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn insert<'q>(&self) -> Result<()>;
+    async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<()>;
 
-    // async fn update<'q>(&self) -> Result<()>;
+    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<()>;
 
-    // async fn count<'q>(&self) -> Result<u64>;
+    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<u64>;
 
-    // async fn delete<'q>(&self) -> Result<()>;
+    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<()>;
 
-    // async fn insert_as<'q, O>(&self) -> Result<O>;
+    async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    // async fn query_all<'q, O>(&self, sql: &str) -> Result<Vec<O>>;
+    // TODO: missing arguments
+    async fn query_all<'q, O>(&self, sql: &str) -> Result<Vec<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    // async fn query_one<'q, O>(&self, sql: &str) -> Result<O>;
+    // TODO: missing arguments
+    async fn query_one<'q, O>(&self, sql: &str) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
     async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
     where

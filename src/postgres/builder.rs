@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write, mem};
+use std::{fmt::Write, mem};
 
 use crate::{
     Bindable,
@@ -32,6 +32,10 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
     fn push_placeholder(&mut self) {
         self.params_index += 1;
         let _ = write!(self.sql, "${}", self.params_index);
+    }
+
+    pub fn to_sql(self, statement: &Statement<DB>) -> String {
+        return self.query(statement).0;
     }
 
     pub fn insert(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
@@ -212,7 +216,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
     }
 
     pub fn compile(&mut self) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
-        (mem::take(&mut self.sql), mem::take(&mut self.arguments))
+        return (mem::take(&mut self.sql), mem::take(&mut self.arguments));
     }
 
     fn bind_to(&mut self, value: &Box<dyn Bindable<DB>>) {

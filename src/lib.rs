@@ -1,4 +1,4 @@
-use std::{error::Error, i64};
+use std::{collections::HashMap, error::Error};
 
 use serde::Serialize;
 use sqlx::{
@@ -140,7 +140,7 @@ pub trait Executor {
 
     // async fn execute_as<'q, O>(&self, sql: String) -> Result<Vec<O>>;
 
-    // async fn insert<'q>(&self) -> Result<()>;
+    async fn insert<'q>(&self) -> Result<()>;
 
     // async fn update<'q>(&self) -> Result<()>;
 
@@ -258,8 +258,7 @@ pub struct Statement<DB: SqlxDatabase> {
     pub order_by: Vec<OrderValue>,
     pub limit: Option<Limit<DB>>,
     pub offset: Option<Offset<DB>>,
-    pub _limit: u64,
-    pub _page: u64,
+    pub values: HashMap<String, Box<dyn Bindable<DB>>>
 }
 
 impl <DB: SqlxDatabase>Statement<DB> {
@@ -274,8 +273,7 @@ impl <DB: SqlxDatabase>Statement<DB> {
             order_by: Vec::new(),
             limit: None,
             offset: None,
-            _limit: 0,
-            _page: 0,
+            values: HashMap::new(),
         };
     }
 }

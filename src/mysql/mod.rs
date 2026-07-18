@@ -19,6 +19,10 @@ impl Executor for SQLite {
         todo!()
     }
 
+    async fn insert<'q>(&self) -> crate::Result<()> {
+        todo!()
+    }
+
     async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
         O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {

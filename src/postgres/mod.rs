@@ -35,14 +35,15 @@ impl Executor for Postgres {
         return sql; 
     }
 
+    async fn insert<'q>(&self) -> crate::Result<()> {
+        todo!()
+    }
+
     async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
-
-
-        println!("\r\n\r\n\r\n\r\n ToSQL: {}", sql);
 
         return  sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_all(&self.pool)
@@ -95,7 +96,7 @@ impl Executor for Postgres {
         // TODO: need to get limit, page as u64 in Bindable<>
         return Ok(Pagination {
             total: total.total as u64,
-            page: statement._page,
+            page: 1,
             per_page: 10,
             items: items,
         });

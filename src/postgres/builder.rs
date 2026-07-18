@@ -1,4 +1,4 @@
-use std::{fmt::Write, mem};
+use std::{collections::HashMap, fmt::Write, mem};
 
 use crate::{
     Bindable,
@@ -34,7 +34,34 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         let _ = write!(self.sql, "${}", self.params_index);
     }
 
-    pub fn query(&mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+    pub fn insert(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+        let mut columns: Vec<String> = Vec::new();
+        let mut values: Vec<String> = Vec::new();
+        let mut idx = 1;
+
+        statement
+            .values
+            .iter()
+            .for_each(|(k, v)| {
+                columns.push(k.into());
+                values.push(idx.to_string());
+                idx += 1;
+            });
+
+        self.sql.push_str("INSERT INTO ");
+        self.sql.push_str(&statement.table);
+        self.sql.push('(');
+        self.sql.push_str(&columns.join(", "));
+        self.sql.push('(');
+        self.sql.push_str(" VALUES");
+        self.sql.push('(');
+        self.sql.push_str(&values.join(", "));
+        self.sql.push('(');
+
+        return self.compile();
+    }
+
+    pub fn query(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
         self.select(&statement.fields)
             .from(&statement.table)
             .joins(&statement.join)
@@ -146,7 +173,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
         return self;
     }
-    
+
     pub fn order_by(&mut self, order_by: &[OrderValue]) -> &mut Self {
         if order_by.is_empty() {
             return self;

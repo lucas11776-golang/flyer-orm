@@ -3,7 +3,7 @@ use sqlx::SqlitePool;
 use crate::Executor;
 
 pub struct MySQL {
-    pool: SqlitePool
+    _pool: SqlitePool
 }
 
 impl MySQL {
@@ -15,29 +15,33 @@ impl MySQL {
 impl Executor for MySQL {
     type DB = sqlx::Sqlite;
 
-    fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
+    fn to_sql<'q>(&self, _statement: &crate::Statement<Self::DB>) -> String {
+        todo!()
+    }
+    
+    async fn insert<'q>(&self) -> crate::Result<()> {
         todo!()
     }
 
-    async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
+    async fn all<O>(&self, _statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
         O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
         todo!()
     }
 
-    async fn first<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
+    async fn first<O>(&self, _statement: &crate::Statement<Self::DB>) -> crate::Result<O>
     where
         O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
         todo!()
     }
 
-    async fn get<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
+    async fn get<O>(&self, _statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
         O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
         todo!()
     }
 
-    async fn paginate<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<crate::Pagination<O>>
+    async fn paginate<O>(&self, _statement: &crate::Statement<Self::DB>) -> crate::Result<crate::Pagination<O>>
     where
         O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
         todo!()

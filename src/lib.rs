@@ -71,8 +71,6 @@ impl<DB: SqlxDatabase> WhereClause<DB> {
     }
 }
 
-// Clauses
-
 pub struct WhereGroup<DB: SqlxDatabase> {
     pub conditions: Vec<WhereClause<DB>>,
 }
@@ -137,9 +135,8 @@ pub struct Pagination<Entity> {
 #[allow(async_fn_in_trait)]
 pub trait Executor {
     type DB: SqlxDatabase;
-    // async fn new(url: &str) -> Self where Self: Sized;
 
-    // fn to_sql<'q>(&self) -> String;
+    fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String;
 
     // async fn execute_as<'q, O>(&self, sql: String) -> Result<Vec<O>>;
 
@@ -157,13 +154,19 @@ pub trait Executor {
 
     // async fn query_one<'q, O>(&self, sql: &str) -> Result<O>;
 
-    // async fn all<'q, O>(&self) -> Result<Vec<O>>;
-
-    async fn first<'e, O: Entity>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn get<'e, O: Entity>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    async fn first<O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
+
+    async fn get<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
+        
+    async fn paginate<O>(&self, statement: &Statement<Self::DB>) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 }

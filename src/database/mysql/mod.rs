@@ -38,10 +38,14 @@ impl MySQL {
 }
 
 impl Executor for MySQL {
-    type DB = sqlx::Sqlite;
+    type DB = sqlx::MySql;
 
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
         todo!()
+    }
+    
+    fn db(&self) -> &sqlx::Pool<Self::DB> {
+        return &self.pool;
     }
     
     async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<impl crate::QueryResult> {

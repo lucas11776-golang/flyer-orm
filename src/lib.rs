@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use sqlx::{Database as SqlxDatabase};
+use sqlx::{Database as SqlxDatabase, Pool};
 
 pub use derive::Entity;
 pub use database::postgres::Postgres;
@@ -88,6 +88,8 @@ pub trait Executor {
 
     fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String;
 
+    fn db(&self) -> &Pool<Self::DB>;
+
     async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> Result<impl QueryResult>;
 
     async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> Result<O>
@@ -139,7 +141,7 @@ impl <'q, E: Executor>Query<'q, E> {
             statement: Statement::new(table),
         };
     }
-    
+
     pub fn to_sql(&self) -> String {
         return self
             .executor

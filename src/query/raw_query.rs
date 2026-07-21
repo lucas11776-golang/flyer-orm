@@ -25,7 +25,6 @@ impl <'e, E: Executor>RawQuery<'e, E> {
         todo!()
     }
 
-
     pub async fn execute_as<O>(&mut self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 

@@ -27,7 +27,7 @@ impl QueryResult for SQLiteQueryResult {
 }
 
 pub struct SQLite {
-    _pool: SqlitePool
+    pool: SqlitePool
 }
 
 impl SQLite {
@@ -41,6 +41,10 @@ impl Executor for SQLite {
 
     fn to_sql<'q>(&self, _statement: &crate::Statement<Self::DB>) -> String {
         todo!()
+    }
+    
+    fn db(&self) -> &sqlx::Pool<Self::DB> {
+        return &self.pool;
     }
     
     async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<impl crate::QueryResult> {

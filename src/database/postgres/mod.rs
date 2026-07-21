@@ -3,7 +3,11 @@ use sqlx::{
 };
 
 use crate::{
-    Entity, Executor, Pagination, QueryResult, database::postgres::builder::QueryBuilder,
+    Entity,
+    Executor,
+    Pagination,
+    QueryResult,
+    database::postgres::builder::QueryBuilder,
 };
 
 mod builder;
@@ -57,6 +61,10 @@ impl Executor for Postgres {
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
         return QueryBuilder::new(true).to_sql(statement); 
     }
+
+    fn db(&self) -> &sqlx::Pool<Self::DB> {
+        return &self.pool;
+    }
     
     async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<impl crate::QueryResult> {
         return Ok(PostgresQueryResult::new(0, 0));
@@ -91,7 +99,20 @@ impl Executor for Postgres {
     }
     
     async fn count<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<u64> {
-        todo!()
+        let (sql, arguments) = QueryBuilder::new(false)
+            .select(&vec!["COUNT(*) AS total".into()])
+            .from(&statement.table)
+            .joins(&statement.join)
+            .conditions(&statement.conditions, true)
+            .group_by(&statement.group_by)
+            .having(&statement.having)
+            .compile();
+
+        return sqlx::query_as_with::<Self::DB, Total, _>(&sql, arguments)
+            .fetch_one(&self.pool)
+            .await
+            .map(|total| total.total as u64)
+            .map_err(|err| err.into());
     }
     
     async fn delete<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {

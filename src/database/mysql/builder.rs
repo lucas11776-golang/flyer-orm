@@ -1,16 +1,7 @@
-// Add more feature in `conditions` e.g LIKE
-
 use std::{fmt::Write, mem};
 
 use crate::{
-    Bindable,
-    Having,
-    Join,
-    Limit,
-    Offset,
-    OrderValue,
-    Statement,
-    WhereClause
+    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause,
 };
 
 pub struct QueryBuilder<'c, DB: sqlx::Database> {
@@ -19,10 +10,7 @@ pub struct QueryBuilder<'c, DB: sqlx::Database> {
     dry_run: bool,
 }
 
-impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> 
-where
-    // DB: sqlx::Database<Arguments<'c> = sqlx::mysql::MySqlArguments<'c>>,
-{
+impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
     pub fn new(dry_run: bool) -> Self {
         Self {
             arguments: Default::default(),
@@ -37,12 +25,65 @@ where
     }
 
     pub fn to_sql(self, statement: &Statement<DB>) -> String {
-        return self.query(statement).0;
+        self.query(statement).0
     }
 
-    // TODO: Implement insert
-    pub fn insert(mut self, _statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
-        return self.compile();
+    pub fn insert(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+        self.sql.push_str("INSERT INTO ");
+        self.sql.push_str(&statement.table);
+
+        if statement.values.is_empty() {
+            self.sql.push_str(" () VALUES ()");
+            return self.compile();
+        }
+
+        self.sql.push_str(" (");
+        for (idx, (col, _)) in statement.values.iter().enumerate() {
+            if idx > 0 {
+                self.sql.push_str(", ");
+            }
+            self.sql.push_str(col);
+        }
+
+        self.sql.push_str(") VALUES (");
+        for (idx, (_, val)) in statement.values.iter().enumerate() {
+            if idx > 0 {
+                self.sql.push_str(", ");
+            }
+            self.push_placeholder();
+            self.bind_to(val);
+        }
+        self.sql.push(')');
+
+        self.compile()
+    }
+
+    pub fn update(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+        self.sql.push_str("UPDATE ");
+        self.sql.push_str(&statement.table);
+        self.sql.push_str(" SET ");
+
+        for (idx, (col, val)) in statement.values.iter().enumerate() {
+            if idx > 0 {
+                self.sql.push_str(", ");
+            }
+            let _ = write!(self.sql, "{} = ", col);
+            self.push_placeholder();
+            self.bind_to(val);
+        }
+
+        self.conditions(&statement.conditions, true);
+
+        self.compile()
+    }
+
+    pub fn delete(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+        self.sql.push_str("DELETE FROM ");
+        self.sql.push_str(&statement.table);
+
+        self.conditions(&statement.conditions, true);
+
+        self.compile()
     }
 
     pub fn query(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
@@ -72,15 +113,15 @@ where
             }
             self.sql.push_str(field);
         }
-        
-        return self;
+
+        self
     }
 
     pub fn from(&mut self, table: &str) -> &mut Self {
         self.sql.push_str(" FROM ");
         self.sql.push_str(table);
 
-        return self;
+        self
     }
 
     pub fn joins(&mut self, joins: &[Join]) -> &mut Self {
@@ -92,7 +133,7 @@ where
             );
         }
 
-        return self;
+        self
     }
 
     pub fn conditions(&mut self, conditions: &[WhereClause<DB>], is_root: bool) -> &mut Self {
@@ -114,9 +155,12 @@ where
                     let op = operator.trim().to_lowercase();
 
                     match op.as_str() {
-                        "like" | "not like" | "ilike" | "not ilike" => {
-                            let _ = write!(self.sql, "{} {} ", column, op.to_uppercase());
+                        "like" | "ilike" | "not like" | "not ilike" => {
+                            // MySQL doesn't have ILIKE — converts to LIKE / NOT LIKE and uses CONCAT()
+                            let sql_op = if op.contains("not") { "NOT LIKE" } else { "LIKE" };
+                            let _ = write!(self.sql, "{} {} CONCAT('%', ", column, sql_op);
                             self.push_placeholder();
+                            self.sql.push_str(", '%')");
                         }
                         _ => {
                             let _ = write!(self.sql, "{} {} ", column, operator);
@@ -139,8 +183,8 @@ where
                     }
 
                     let op = if *negated { "NOT IN" } else { "IN" };
-                    let _ = write!(self.sql, "{} (", column);
-                    
+                    let _ = write!(self.sql, "{} {} (", column, op);
+
                     for (v_idx, val) in values.iter().enumerate() {
                         if v_idx > 0 {
                             self.sql.push_str(", ");
@@ -148,19 +192,19 @@ where
                         self.push_placeholder();
                         self.bind_to(val);
                     }
-                    
+
                     self.sql.push(')');
                 }
 
                 WhereClause::Between { column, negated, low, high, .. } => {
                     let op = if *negated { "NOT BETWEEN" } else { "BETWEEN" };
                     let _ = write!(self.sql, "{} {} ", column, op);
-                    
+
                     self.push_placeholder();
                     self.bind_to(low);
-                    
+
                     self.sql.push_str(" AND ");
-                    
+
                     self.push_placeholder();
                     self.bind_to(high);
                 }
@@ -176,14 +220,13 @@ where
         self
     }
 
-
     pub fn group_by(&mut self, group_by: &Option<String>) -> &mut Self {
         if let Some(column) = group_by {
             self.sql.push_str(" GROUP BY ");
             self.sql.push_str(column);
         }
 
-        return self;
+        self
     }
 
     pub fn having(&mut self, having: &[Having<DB>]) -> &mut Self {
@@ -204,7 +247,7 @@ where
             self.bind_to(&h.value);
         }
 
-        return self;
+        self
     }
 
     pub fn order_by(&mut self, order_by: &[OrderValue]) -> &mut Self {
@@ -221,29 +264,31 @@ where
             let _ = write!(self.sql, "{} {}", o.column, o.order.to_string());
         }
 
-        return self;
+        self
     }
 
     pub fn limit(&mut self, limit: &Option<Limit<DB>>) -> &mut Self {
         if let Some(limit) = limit {
             self.bind_to(&limit.value);
-            self.sql.push_str(" LIMIT ?");
+            self.sql.push_str(" LIMIT ");
+            self.push_placeholder();
         }
 
-        return self;
+        self
     }
 
     pub fn offset(&mut self, offset: &Option<Offset<DB>>) -> &mut Self {
         if let Some(offset) = offset {
             self.bind_to(&offset.value);
-            self.sql.push_str(" OFFSET ?");
+            self.sql.push_str(" OFFSET ");
+            self.push_placeholder();
         }
 
-        return self;
+        self
     }
 
     pub fn compile(&mut self) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
-        return (mem::take(&mut self.sql), mem::take(&mut self.arguments));
+        (mem::take(&mut self.sql), mem::take(&mut self.arguments))
     }
 
     fn bind_to(&mut self, value: &Box<dyn Bindable<DB>>) {

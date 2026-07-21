@@ -1,5 +1,3 @@
-// Add more feature in `conditions` e.g LIKE
-
 use std::{fmt::Write, mem};
 
 use crate::{

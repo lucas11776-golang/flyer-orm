@@ -58,6 +58,20 @@ impl MySQL {
 impl Executor for MySQL {
     type DB = sqlx::MySql;
 
+    async fn new(url: impl Into<String>) -> Self {
+        return Self {
+            pool: MySqlPool::connect(&url.into())
+                .await
+                .unwrap()
+        }
+    }
+    
+    fn from(pool: sqlx::Pool<Self::DB>) -> Self {
+        return Self {
+            pool: pool
+        }
+    }
+
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
         return QueryBuilder::new(true).to_sql(statement);
     }

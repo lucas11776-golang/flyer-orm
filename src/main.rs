@@ -1,5 +1,5 @@
 use anyhow::Result;
-use flyer_orm::{Query, Postgres};
+use flyer_orm::{Executor, Postgres, Query};
 use once_cell::sync::OnceCell;
 use flyer_orm::Entity;
 

@@ -1,6 +1,4 @@
-use sqlx::{
-    Database as SqlxDatabase, SqlitePool,
-};
+use sqlx::SqlitePool;
 
 use crate::{
     Entity,
@@ -42,21 +40,28 @@ struct Total {
 }
 
 pub struct SQLite {
-    pool: SqlitePool
+    pool: sqlx::SqlitePool
 }
 
 impl SQLite {
-    pub async fn new(url: impl Into<String>) -> Self {
+}
+
+impl Executor for SQLite {
+    type DB = sqlx::Sqlite;
+
+    async fn new(url: impl Into<String>) -> Self {
         return Self {
             pool: SqlitePool::connect(&url.into())
                 .await
                 .unwrap()
         }
     }
-}
-
-impl Executor for SQLite {
-    type DB = sqlx::Sqlite;
+    
+    fn from(pool: sqlx::Pool<Self::DB>) -> Self {
+        return Self {
+            pool: pool
+        }
+    }
 
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
         return QueryBuilder::new(true).to_sql(statement);

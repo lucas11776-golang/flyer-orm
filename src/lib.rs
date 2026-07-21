@@ -35,35 +35,30 @@ impl ToString for Connector {
 }
 
 pub enum WhereClause<DB: sqlx::Database> {
-    // Standard binary operators (=, !=, LIKE, ILIKE, >, <, etc.)
     Clause {
         column: String,
         operator: String,
         value: Box<dyn Bindable<DB>>,
         connector: Connector,
     },
-    // Null checks (no bound values)
     NullCheck {
         column: String,
-        is_null: bool, // true = IS NULL, false = IS NOT NULL
+        is_null: bool,
         connector: Connector,
     },
-    // IN / NOT IN lists
     In {
         column: String,
-        negated: bool, // true = NOT IN
+        negated: bool,
         values: Vec<Box<dyn Bindable<DB>>>,
         connector: Connector,
     },
-    // Range queries
     Between {
         column: String,
-        negated: bool, // true = NOT BETWEEN
+        negated: bool,
         low: Box<dyn Bindable<DB>>,
         high: Box<dyn Bindable<DB>>,
         connector: Connector,
     },
-    // Grouping: ( cond1 AND cond2 )
     Group {
         conditions: Vec<WhereClause<DB>>,
         connector: Connector,
@@ -85,6 +80,10 @@ impl<DB: SqlxDatabase> WhereClause<DB> {
 #[allow(async_fn_in_trait)]
 pub trait Executor {
     type DB: SqlxDatabase;
+
+    async fn new(url: impl Into<String>) -> Self;
+
+    fn from(pool: sqlx::Pool<Self::DB>) -> Self;
 
     fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String;
 

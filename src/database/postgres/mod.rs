@@ -1,6 +1,4 @@
-use sqlx::{
-    Database as SqlxDatabase, PgPool,
-};
+use sqlx::{Database as SqlxDatabase, PgPool};
 
 use crate::{
     Entity,
@@ -46,17 +44,24 @@ pub struct Postgres {
 }
 
 impl Postgres {
-    pub async fn new(url: impl Into<String>) -> Self {
+}
+
+impl Executor for Postgres {
+    type DB = sqlx::Postgres;
+
+    async fn new(url: impl Into<String>) -> Self {
         return Self {
             pool: PgPool::connect(&url.into())
                 .await
                 .unwrap()
         }
     }
-}
-
-impl Executor for Postgres {
-    type DB = sqlx::Postgres;
+    
+    fn from(pool: sqlx::Pool<Self::DB>) -> Self {
+        return Self {
+            pool: pool
+        }
+    }
     
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
         return QueryBuilder::new(true).to_sql(statement); 

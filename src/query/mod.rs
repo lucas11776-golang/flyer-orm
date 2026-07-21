@@ -10,7 +10,7 @@ use crate::{
 
 pub use crate::Entity;
 
-pub mod execute_as;
+pub mod raw_query;
 
 pub struct WhereGroup<DB: SqlxDatabase> {
     pub conditions: Vec<WhereClause<DB>>,

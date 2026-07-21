@@ -1,3 +1,5 @@
+// Add more feature in `conditions` e.g LIKE
+
 use std::{fmt::Write, mem};
 
 use crate::{
@@ -29,9 +31,9 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
     }
 
     #[inline]
-    fn push_placeholder(&mut self) {
+    fn push_placeholder(&mut self, prefix: &str, suffix: &str) {
         self.params_index += 1;
-        let _ = write!(self.sql, "${}", self.params_index);
+        let _ = write!(self.sql, "{}${}{}", prefix, self.params_index, suffix);
     }
 
     pub fn to_sql(self, statement: &Statement<DB>) -> String {
@@ -133,10 +135,61 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
             match cond {
                 WhereClause::Clause { column, operator, value, .. } => {
-                    let _ = write!(self.sql, "{} {} ", column, operator);
-                    self.push_placeholder();
+                    let op = operator.trim().to_lowercase();
+
+                    match op.as_str() {
+                        "like" | "not like" | "ilike" | "not ilike" => {
+                            let _ = write!(self.sql, "{} {} ", column, op.to_uppercase());
+                            // Produces: '%' || $1 || '%'
+                            self.push_placeholder("'%' || ", " || '%'");
+                        }
+                        _ => {
+                            let _ = write!(self.sql, "{} {} ", column, operator);
+                            self.push_placeholder("", "");
+                        }
+                    }
+
                     self.bind_to(value);
                 }
+
+                WhereClause::NullCheck { column, is_null, .. } => {
+                    let op = if *is_null { "IS NULL" } else { "IS NOT NULL" };
+                    let _ = write!(self.sql, "{} {}", column, op);
+                }
+
+                WhereClause::In { column, negated, values, .. } => {
+                    if values.is_empty() {
+                        self.sql.push_str("1 = 0");
+                        continue;
+                    }
+
+                    let op = if *negated { "NOT IN" } else { "IN" };
+                    let _ = write!(self.sql, "{} (", column);
+                    
+                    for (v_idx, val) in values.iter().enumerate() {
+                        if v_idx > 0 {
+                            self.sql.push_str(", ");
+                        }
+                        self.push_placeholder("", "");
+                        self.bind_to(val);
+                    }
+                    
+                    self.sql.push(')');
+                }
+
+                WhereClause::Between { column, negated, low, high, .. } => {
+                    let op = if *negated { "NOT BETWEEN" } else { "BETWEEN" };
+                    let _ = write!(self.sql, "{} {} ", column, op);
+                    
+                    self.push_placeholder("", "");
+                    self.bind_to(low);
+                    
+                    self.sql.push_str(" AND ");
+                    
+                    self.push_placeholder("", "");
+                    self.bind_to(high);
+                }
+
                 WhereClause::Group { conditions: sub_conds, .. } => {
                     self.sql.push('(');
                     self.conditions(sub_conds, false);
@@ -145,8 +198,9 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
             }
         }
 
-        return self;
+        self
     }
+
 
     pub fn group_by(&mut self, group_by: &Option<String>) -> &mut Self {
         if let Some(column) = group_by {
@@ -171,7 +225,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
             let _ = write!(self.sql, "{} {} ", h.column, h.operator);
 
-            self.push_placeholder();
+            self.push_placeholder("", "");
             self.bind_to(&h.value);
         }
 
@@ -199,7 +253,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         if let Some(limit) = limit {
             self.bind_to(&limit.value);
             self.sql.push_str(" LIMIT ");
-            self.push_placeholder();
+            self.push_placeholder("", "");
         }
 
         return self;
@@ -209,7 +263,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         if let Some(offset) = offset {
             self.bind_to(&offset.value);
             self.sql.push_str(" OFFSET ");
-            self.push_placeholder();
+            self.push_placeholder("", "");
         }
 
         return self;

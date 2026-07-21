@@ -1,6 +1,30 @@
 use sqlx::SqlitePool;
 
-use crate::Executor;
+use crate::{Executor, QueryResult};
+
+pub struct SQLiteQueryResult {
+    pub(crate) affected: u64,
+    pub(crate) id: u64,
+}
+
+impl SQLiteQueryResult {
+    pub fn new(affected: u64, id: u64) -> Self {
+        return Self {
+            affected: affected,
+            id: id,
+        };
+    }
+}
+
+impl QueryResult for SQLiteQueryResult {
+    fn rows_affected(&self) -> u64 {
+        return self.affected;
+    }
+
+    fn last_inserted(&self) -> u64 {
+        return self.id;
+    }
+}
 
 pub struct SQLite {
     _pool: SqlitePool
@@ -17,6 +41,10 @@ impl Executor for SQLite {
 
     fn to_sql<'q>(&self, _statement: &crate::Statement<Self::DB>) -> String {
         todo!()
+    }
+    
+    async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<impl crate::QueryResult> {
+        return Ok(SQLiteQueryResult::new(0, 0));
     }
 
     async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<O>

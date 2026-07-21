@@ -1,15 +1,14 @@
 use std::mem;
 
-use crate::{Entity, Executor, Result, types::Bindable};
+use crate::{Entity, Executor, QueryResult, Result, types::Bindable};
 
-pub struct ExecuteAs<'e, E: Executor> {
+pub struct RawQuery<'e, E: Executor> {
     sql: String,
     arguments: <E::DB as sqlx::Database>::Arguments<'e>,
     executor: &'e E,
-    
 }
 
-impl <'e, E: Executor>ExecuteAs<'e, E> {
+impl <'e, E: Executor>RawQuery<'e, E> {
     pub fn new(executor: &'e E, sql: impl Into<String>) -> Self {
         return Self {
             sql: sql.into(),
@@ -24,6 +23,16 @@ impl <'e, E: Executor>ExecuteAs<'e, E> {
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
         todo!()
+    }
+
+
+    pub async fn execute_as<O>(&mut self) -> Result<Vec<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+    {
+        return self
+            .fetch_all()
+            .await;
     }
 
     pub async fn fetch_one<O>(&mut self) -> Result<O>

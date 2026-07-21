@@ -8,7 +8,7 @@ pub use database::mysql::MySQL;
 pub use database::sqlite::SQLite;
 
 use crate::{
-    query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup, execute_as::ExecuteAs},
+    query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup, raw_query::RawQuery},
     types::{Bindable, Connector, JoinType, Order}
 };
 
@@ -16,9 +16,14 @@ pub mod database;
 pub mod types;
 pub mod query;
 
+pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+
 pub trait Entity {}
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+pub trait QueryResult {
+    fn rows_affected(&self) -> u64;
+    fn last_inserted(&self) -> u64;
+}
 
 impl ToString for Connector {
     fn to_string(&self) -> String {
@@ -29,24 +34,50 @@ impl ToString for Connector {
     }
 }
 
-pub enum WhereClause<DB: SqlxDatabase> {
+pub enum WhereClause<DB: sqlx::Database> {
+    // Standard binary operators (=, !=, LIKE, ILIKE, >, <, etc.)
     Clause {
-        connector: Connector,
         column: String,
         operator: String,
         value: Box<dyn Bindable<DB>>,
-    },
-    Group {
         connector: Connector,
+    },
+    // Null checks (no bound values)
+    NullCheck {
+        column: String,
+        is_null: bool, // true = IS NULL, false = IS NOT NULL
+        connector: Connector,
+    },
+    // IN / NOT IN lists
+    In {
+        column: String,
+        negated: bool, // true = NOT IN
+        values: Vec<Box<dyn Bindable<DB>>>,
+        connector: Connector,
+    },
+    // Range queries
+    Between {
+        column: String,
+        negated: bool, // true = NOT BETWEEN
+        low: Box<dyn Bindable<DB>>,
+        high: Box<dyn Bindable<DB>>,
+        connector: Connector,
+    },
+    // Grouping: ( cond1 AND cond2 )
+    Group {
         conditions: Vec<WhereClause<DB>>,
+        connector: Connector,
     },
 }
 
 impl<DB: SqlxDatabase> WhereClause<DB> {
     fn connector(&self) -> Connector {
         match self {
-            WhereClause::Clause { connector, .. } => *connector,
-            WhereClause::Group { connector, .. } => *connector,
+            WhereClause::Clause { connector, .. }    => *connector,
+            WhereClause::Group { connector, .. }     => *connector,
+            WhereClause::NullCheck { connector, .. } => *connector,
+            WhereClause::In { connector, .. }        => *connector,
+            WhereClause::Between { connector, .. }   => *connector,
         }
     }
 }
@@ -56,6 +87,8 @@ pub trait Executor {
     type DB: SqlxDatabase;
 
     fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String;
+
+    async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> Result<impl QueryResult>;
 
     async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> Result<O>
     where
@@ -106,21 +139,15 @@ impl <'q, E: Executor>Query<'q, E> {
             statement: Statement::new(table),
         };
     }
+    
+    pub fn to_sql(&self) -> String {
+        return self
+            .executor
+            .to_sql(&self.statement);
+    }
 
-    // pub async fn get<'c, O>(&mut self) -> Result<Vec<O>>
-    // where
-    //     O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as SqlxDatabase>::Row> + Send + Unpin, 
-    //     for<'a> <E::DB as SqlxDatabase>::Arguments<'a>: IntoArguments<'a, E::DB>,
-    // {
-    //     return self
-    //         .executor
-    //         .get(&self.statement)
-    //         .await;
-    // }
-
-
-    pub fn execute_as(&self, sql: impl Into<String>) -> ExecuteAs<'_, E> {
-        return ExecuteAs::new(self.executor, sql);
+    pub fn raw_query(&self, sql: impl Into<String>) -> RawQuery<'_, E> {
+        return RawQuery::new(self.executor, sql);
     }
 
     fn join_push(
@@ -325,10 +352,19 @@ impl <'q, E: Executor>Query<'q, E> {
         return self;
     }
 
+    pub async fn first<'c, O>(&mut self) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as SqlxDatabase>::Row> + Send + Unpin,
+    {
+        return self
+            .executor
+            .first(&self.statement)
+            .await;
+    }
+
     pub async fn get<'c, O>(&mut self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as SqlxDatabase>::Row> + Send + Unpin, 
-        // for<'a> <E::DB as SqlxDatabase>::Arguments<'a>: IntoArguments<'a, E::DB>,
     {
         return self
             .executor

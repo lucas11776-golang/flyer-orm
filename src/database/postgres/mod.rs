@@ -3,10 +3,34 @@ use sqlx::{
 };
 
 use crate::{
-    Entity, Executor, Pagination, database::postgres::builder::QueryBuilder,
+    Entity, Executor, Pagination, QueryResult, database::postgres::builder::QueryBuilder,
 };
 
 mod builder;
+
+pub struct PostgresQueryResult {
+    pub(crate) affected: u64,
+    pub(crate) id: u64,
+}
+
+impl PostgresQueryResult {
+    pub fn new(affected: u64, id: u64) -> Self {
+        return Self {
+            affected: affected,
+            id: id,
+        };
+    }
+}
+
+impl QueryResult for PostgresQueryResult {
+    fn rows_affected(&self) -> u64 {
+        return self.affected;
+    }
+
+    fn last_inserted(&self) -> u64 {
+        return self.id;
+    }
+}
 
 #[derive(crate::Entity)]
 struct Total {
@@ -32,6 +56,10 @@ impl Executor for Postgres {
     
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
         return QueryBuilder::new(true).to_sql(statement); 
+    }
+    
+    async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<impl crate::QueryResult> {
+        return Ok(PostgresQueryResult::new(0, 0));
     }
 
     async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<O>
@@ -76,7 +104,7 @@ impl Executor for Postgres {
     {
         todo!()
     }
-    
+
     async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin

@@ -60,15 +60,23 @@ async fn main() -> Result<()> {
     // }
 
 
-    let users = Database::query("users")
-        .execute_as("SELECT * FROM users")
-        .fetch_one::<User>()
+    // let users = Database::query("users")
+    //     .raw_query("SELECT * FROM users")
+    //     .fetch_one::<User>()
+    //     .await
+    //     .unwrap();
+
+    // // for user in users {
+    //     println!("\r\nUser: {:?}\r\n", users);
+    // // }
+
+    let sql = Database::query("users")
+        .r#where("email", "LIKE", "thembangubeni")
+        .first::<User>()
         .await
         .unwrap();
 
-    // for user in users {
-        println!("\r\nUser: {:?}\r\n", users);
-    // }
+    println!("SQL -> {:?}", sql);
         
 
     Ok(())

@@ -1,15 +1,13 @@
 use sqlx::{Database as SqlxDatabase, PgPool};
 
 use crate::{
-    Entity,
-    Executor,
-    Pagination,
-    QueryResult,
     database::postgres::builder::QueryBuilder,
+    Entity, Executor, Pagination, QueryResult,
 };
 
 mod builder;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PostgresQueryResult {
     pub(crate) affected: u64,
     pub(crate) id: u64,
@@ -17,95 +15,139 @@ pub struct PostgresQueryResult {
 
 impl PostgresQueryResult {
     pub fn new(affected: u64, id: u64) -> Self {
-        return Self {
-            affected: affected,
-            id: id,
-        };
+        Self { affected, id }
     }
 }
 
 impl QueryResult for PostgresQueryResult {
     fn rows_affected(&self) -> u64 {
-        return self.affected;
+        self.affected
     }
 
     fn last_inserted(&self) -> u64 {
-        return self.id;
+        self.id
     }
 }
 
-#[derive(crate::Entity)]
-struct Total {
-    pub total: i64,
-}
-
 pub struct Postgres {
-    pool: PgPool
+    pool: PgPool,
 }
 
 impl Postgres {
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
 }
 
 impl Executor for Postgres {
     type DB = sqlx::Postgres;
 
     async fn new(url: impl Into<String>) -> Self {
-        return Self {
+        Self {
             pool: PgPool::connect(&url.into())
                 .await
-                .unwrap()
+                .unwrap(),
         }
     }
-    
+
     fn from(pool: sqlx::Pool<Self::DB>) -> Self {
-        return Self {
-            pool: pool
-        }
+        Self { pool }
     }
-    
+
     fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
-        return QueryBuilder::new(true).to_sql(statement); 
+        QueryBuilder::new(true).to_sql(statement)
     }
 
     fn db(&self) -> &sqlx::Pool<Self::DB> {
-        return &self.pool;
-    }
-    
-    async fn execute<'c>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<impl crate::QueryResult> {
-        return Ok(PostgresQueryResult::new(0, 0));
+        &self.pool
     }
 
-    async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<O>
+    async fn execute<'c>(
+        &self,
+        sql: String,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+    ) -> crate::Result<impl crate::QueryResult> {
+        let res = sqlx::query_with::<Self::DB, _>(&sql, arguments)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(PostgresQueryResult::new(res.rows_affected(), 0))
+    }
+
+    async fn fetch_one<'c, O>(
+        &self,
+        sql: String,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+    ) -> crate::Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin
+        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
-        return sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_one(&self.pool)
             .await
-            .map_err(|err| err.into());
+            .map_err(Into::into)
     }
-    
-    async fn fetch_all<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<Vec<O>>
+
+    async fn fetch_all<'c, O>(
+        &self,
+        sql: String,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+    ) -> crate::Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
-        return sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_all(&self.pool)
             .await
-            .map_err(|err| err.into());
+            .map_err(Into::into)
     }
 
     async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
-        todo!()
+        let (sql, arguments) = QueryBuilder::new(false).insert(statement);
+
+        sqlx::query_with::<Self::DB, _>(&sql, arguments)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
-    
+
+    async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
+    where
+        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+    {
+        let (mut sql, arguments) = QueryBuilder::new(false).insert(statement);
+        sql.push_str(" RETURNING *");
+
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn update<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
-        todo!()
+        let (sql, arguments) = QueryBuilder::new(false).update(statement);
+
+        sqlx::query_with::<Self::DB, _>(&sql, arguments)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
-    
+
+    async fn delete<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+        let (sql, arguments) = QueryBuilder::new(false).delete(statement);
+
+        sqlx::query_with::<Self::DB, _>(&sql, arguments)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
     async fn count<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<u64> {
         let (sql, arguments) = QueryBuilder::new(false)
-            .select(&vec!["COUNT(*) AS total".into()])
+            .select(&["COUNT(*) AS total".into()])
             .from(&statement.table)
             .joins(&statement.join)
             .conditions(&statement.conditions, true)
@@ -113,84 +155,58 @@ impl Executor for Postgres {
             .having(&statement.having)
             .compile();
 
-        return sqlx::query_as_with::<Self::DB, Total, _>(&sql, arguments)
+        sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, arguments)
             .fetch_one(&self.pool)
             .await
-            .map(|total| total.total as u64)
-            .map_err(|err| err.into());
-    }
-    
-    async fn delete<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
-        todo!()
-    }
-    
-    async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
-    where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin
-    {
-        todo!()
+            .map(|total| total as u64)
+            .map_err(Into::into)
     }
 
     async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        return  sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_all(&self.pool)
             .await
-            .map_err(|err| err.into());
+            .map_err(Into::into)
     }
 
     async fn first<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        return  sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_one(&self.pool)
             .await
-            .map_err(|err| err.into());
+            .map_err(Into::into)
     }
-    
+
     async fn get<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin, 
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
-        return self.all(statement).await;
+        self.all(statement).await
     }
-    
+
     async fn paginate<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<crate::Pagination<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
-        let items: Vec<O> = self
-            .get(statement)
-            .await
-            .unwrap();
+        let (items, total) = tokio::try_join!(
+            self.get::<O>(statement),
+            self.count(statement)
+        )?;
 
-        let (sql, arguments) = QueryBuilder::new(false)
-            .select(&vec!["COUNT(*) AS total".into()])
-            .from(&statement.table)
-            .joins(&statement.join)
-            .conditions(&statement.conditions, true)
-            .group_by(&statement.group_by)
-            .having(&statement.having)
-            .compile();
-
-        let total =  sqlx::query_as_with::<Self::DB, Total, _>(&sql, arguments)
-            .fetch_one(&self.pool)
-            .await
-            .unwrap();
-
-        // TODO: need to get limit, page as u64 in Bindable<>
-        return Ok(Pagination {
-            total: total.total as u64,
+        Ok(Pagination {
+            total,
             page: 1,
             per_page: 10,
-            items: items,
-        });
+            items,
+        })
     }
 }

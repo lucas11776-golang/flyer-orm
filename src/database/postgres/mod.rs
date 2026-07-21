@@ -1,13 +1,9 @@
 use sqlx::{
-    Database as SqlxDatabase,
-    PgPool,
+    Database as SqlxDatabase, PgPool,
 };
 
 use crate::{
-    Entity,
-    Executor,
-    Pagination,
-    postgres::builder::QueryBuilder
+    Entity, Executor, Pagination, database::postgres::builder::QueryBuilder,
 };
 
 mod builder;
@@ -38,12 +34,26 @@ impl Executor for Postgres {
         return QueryBuilder::new(true).to_sql(statement); 
     }
 
-    async fn execute_as<'q, O>(&self, sql: String) -> crate::Result<Vec<O>>
+    async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
-        todo!()
+        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin
+    {
+        return sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|err| err.into());
     }
     
+    async fn fetch_all<'c, O>(&self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'c>) -> crate::Result<Vec<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin
+    {
+        return sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|err| err.into());
+    }
+
     async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
         todo!()
     }
@@ -62,22 +72,11 @@ impl Executor for Postgres {
     
     async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
+        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin
+    {
         todo!()
     }
     
-    async fn query_all<'q, O>(&self, sql: &str) -> crate::Result<Vec<O>>
-    where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
-        todo!()
-    }
-    
-    async fn query_one<'q, O>(&self, sql: &str) -> crate::Result<O>
-    where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin {
-        todo!()
-    }
-
     async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin

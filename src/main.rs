@@ -1,5 +1,5 @@
 use anyhow::Result;
-use flyer_orm::{Query, postgres::Postgres};
+use flyer_orm::{Query, Postgres};
 use once_cell::sync::OnceCell;
 use flyer_orm::Entity;
 
@@ -41,23 +41,35 @@ pub struct User {
 async fn main() -> Result<()> {
     Database::init().await;
 
+    // let users = Database::query("users")
+    //     // .join("password_resets", "users.id", "=", "password_resets.user_id")
+    //     // .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     // .or_where("email", "=", "themba@gmail.com")
+    //     .where_group(|group| {
+    //         group
+    //             .r#where("email", "=", "thembangubeni04@gmail.com")
+    //             .or_where("email", "=", "themba@gmail.com");
+    //     })
+    //     // .group_by("password_resets.token")
+    //     .get::<User>()
+    //     .await
+    //     .unwrap();
+
+    // for user in users {
+    //     println!("\r\nUser: {:?}\r\n", user);
+    // }
+
+
     let users = Database::query("users")
-        // .join("password_resets", "users.id", "=", "password_resets.user_id")
-        // .r#where("email", "=", "thembangubeni04@gmail.com")
-        // .or_where("email", "=", "themba@gmail.com")
-        .where_group(|group| {
-            group
-                .r#where("email", "=", "thembangubeni04@gmail.com")
-                .or_where("email", "=", "themba@gmail.com");
-        })
-        // .group_by("password_resets.token")
-        .get::<User>()
+        .execute_as("SELECT * FROM users")
+        .fetch_one::<User>()
         .await
         .unwrap();
 
-    for user in users {
-        println!("\r\nUser: {:?}\r\n", user);
-    }
+    // for user in users {
+        println!("\r\nUser: {:?}\r\n", users);
+    // }
+        
 
     Ok(())
 }

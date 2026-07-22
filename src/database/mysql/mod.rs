@@ -1,7 +1,12 @@
 use sqlx::{Database as SqlxDatabase, MySqlPool};
 
 use crate::{
-    database::mysql::builder::QueryBuilder, Executor, Pagination, QueryResult,
+    Entity,
+    Result,
+    database::mysql::builder::QueryBuilder,
+    Executor,
+    Pagination,
+    QueryResult,
 };
 
 mod builder;
@@ -65,7 +70,7 @@ impl Executor for MySQL {
         &self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> crate::Result<impl crate::QueryResult> {
+    ) -> Result<impl crate::QueryResult> {
         let result = sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
             .await?;
@@ -80,9 +85,9 @@ impl Executor for MySQL {
         &self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> crate::Result<O>
+    ) -> Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_one(&self.pool)
@@ -94,9 +99,9 @@ impl Executor for MySQL {
         &self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> crate::Result<Vec<O>>
+    ) -> Result<Vec<O>>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_all(&self.pool)
@@ -104,19 +109,17 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+    async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
-        sqlx::query_with::<Self::DB, _>(&sql, arguments)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
+        self
+            .execute(sql, arguments)
+            .await
     }
 
-    async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
+    async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
@@ -135,7 +138,7 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn update<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+    async fn update<'q>(&self, statement: &crate::Statement<Self::DB>) -> Result<()> {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
         sqlx::query_with::<Self::DB, _>(&sql, arguments)
@@ -145,17 +148,17 @@ impl Executor for MySQL {
         Ok(())
     }
 
-    async fn delete<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+    async fn delete<'q>(&self, statement: &crate::Statement<Self::DB>) -> Result<()> {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
         sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
-            .await?;
-
-        Ok(())
+            .await
+            .map_err(|err| err.into())
+            .map(|_| ())
     }
 
-    async fn count<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<u64> {
+    async fn count<'q>(&self, statement: &crate::Statement<Self::DB>) -> Result<u64> {
         let (sql, arguments) = QueryBuilder::new(false)
             .select(&["COUNT(*) AS total".into()])
             .from(&statement.table)
@@ -172,43 +175,34 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
+    async fn first<O>(&self, statement: &crate::Statement<Self::DB>) -> Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_all(&self.pool)
+        self
+            .fetch_one(sql, arguments)
             .await
-            .map_err(Into::into)
     }
 
-    async fn first<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
+    async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> Result<Vec<O>>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_one(&self.pool)
+        self
+            .fetch_all(sql, arguments)
             .await
-            .map_err(Into::into)
     }
 
-    async fn get<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
+    async fn paginate<O>(&self, statement: &crate::Statement<Self::DB>) -> Result<crate::Pagination<O>>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
-    {
-        self.all(statement).await
-    }
-
-    async fn paginate<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<crate::Pagination<O>>
-    where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
         let (items, total) = tokio::try_join!(
-            self.get::<O>(statement),
+            self.all::<O>(statement),
             self.count(statement)
         )?;
 

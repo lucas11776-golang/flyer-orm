@@ -156,7 +156,6 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
                     match op.as_str() {
                         "like" | "ilike" | "not like" | "not ilike" => {
-                            // MySQL doesn't have ILIKE — converts to LIKE / NOT LIKE and uses CONCAT()
                             let sql_op = if op.contains("not") { "NOT LIKE" } else { "LIKE" };
                             let _ = write!(self.sql, "{} {} CONCAT('%', ", column, sql_op);
                             self.push_placeholder();

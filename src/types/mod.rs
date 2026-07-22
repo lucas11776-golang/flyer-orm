@@ -1,28 +1,40 @@
-use sqlx::{
-    Database as SqlxDatabase,
-    Arguments,
-    error::BoxDynError
-};
+use std::result::Result;
 
-pub trait Bindable<DB: SqlxDatabase>: Send + 'static {
-    fn bind_to<'q>(&self, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError>;
+use sqlx::{Arguments, error::BoxDynError};
+
+pub trait Bindable<DB: sqlx::Database>: Send + 'static {
+    fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError>;
 }
 
 impl<DB, T> Bindable<DB> for T
 where
-    DB: SqlxDatabase,
+    DB: sqlx::Database,
     T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Clone + Send + 'static,
 {
     #[inline]
-    fn bind_to<'q>(&self, args: &mut <DB as SqlxDatabase>::Arguments<'q>) -> std::result::Result<(), BoxDynError> {
+    fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError> {
         return args.add(self.clone());
     }
+}
+
+pub trait QueryResult {
+    fn rows_affected(&self) -> u64;
+    fn last_inserted(&self) -> u64;
 }
 
 #[derive(Clone, Copy)]
 pub enum Connector {
     And,
     Or,
+}
+
+impl ToString for Connector {
+    fn to_string(&self) -> String {
+        return match self {
+            Connector::And => "AND".into(),
+            Connector::Or  => "OR".into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -45,6 +57,49 @@ impl ToString for JoinType {
             JoinType::FullOuterJoin => "FULL OUTER JOIN".into(),
             JoinType::CrossJoin     => "CROSS JOIN".into(),
         };
+    }
+}
+
+pub enum WhereClause<DB: sqlx::Database> {
+    Clause {
+        column: String,
+        operator: String,
+        value: Box<dyn Bindable<DB>>,
+        connector: Connector,
+    },
+    NullCheck {
+        column: String,
+        is_null: bool,
+        connector: Connector,
+    },
+    In {
+        column: String,
+        negated: bool,
+        values: Vec<Box<dyn Bindable<DB>>>,
+        connector: Connector,
+    },
+    Between {
+        column: String,
+        negated: bool,
+        low: Box<dyn Bindable<DB>>,
+        high: Box<dyn Bindable<DB>>,
+        connector: Connector,
+    },
+    Group {
+        conditions: Vec<WhereClause<DB>>,
+        connector: Connector,
+    },
+}
+
+impl<DB: sqlx::Database> WhereClause<DB> {
+    pub fn connector(&self) -> Connector {
+        match self {
+            WhereClause::Clause { connector, .. }    => *connector,
+            WhereClause::Group { connector, .. }     => *connector,
+            WhereClause::NullCheck { connector, .. } => *connector,
+            WhereClause::In { connector, .. }        => *connector,
+            WhereClause::Between { connector, .. }   => *connector,
+        }
     }
 }
 

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use sqlx::Database as SqlxDatabase;
 
 use crate::{
     WhereClause,
@@ -10,13 +9,14 @@ use crate::{
 
 pub use crate::Entity;
 
-pub mod raw_query;
+pub mod insert;
+pub mod raw;
 
-pub struct WhereGroup<DB: SqlxDatabase> {
+pub struct WhereGroup<DB: sqlx::Database> {
     pub conditions: Vec<WhereClause<DB>>,
 }
 
-impl<DB: SqlxDatabase> WhereGroup<DB> {
+impl<DB: sqlx::Database> WhereGroup<DB> {
     pub fn new() -> Self {
         return Self {
             conditions: Vec::new()
@@ -67,7 +67,7 @@ pub struct Join {
     pub join_type: JoinType
 }
 
-pub struct Having<DB: SqlxDatabase> {
+pub struct Having<DB: sqlx::Database> {
     pub column: String,
     pub operator: String,
     pub value: Box<dyn Bindable<DB>>,
@@ -82,22 +82,22 @@ pub struct OrderValue {
 
 impl OrderValue {
     pub fn new(column: impl Into<String>, order: Order) -> Self {
-        return Self {
+        Self {
             column: column.into(),
             order: order
-        };
+        }
     }
 }
 
-pub struct Limit<DB: SqlxDatabase> {
+pub struct Limit<DB: sqlx::Database> {
     pub value: Box<dyn Bindable<DB>>,
 }
 
-pub struct Offset<DB: SqlxDatabase> {
+pub struct Offset<DB: sqlx::Database> {
     pub value: Box<dyn Bindable<DB>>,
 }
 
-pub struct Statement<DB: SqlxDatabase> {
+pub struct Statement<DB: sqlx::Database> {
     pub table: String,
     pub fields: Vec<String>,
     pub join: Vec<Join>,
@@ -110,9 +110,9 @@ pub struct Statement<DB: SqlxDatabase> {
     pub values: HashMap<String, Box<dyn Bindable<DB>>>
 }
 
-impl <DB: SqlxDatabase>Statement<DB> {
+impl <DB: sqlx::Database>Statement<DB> {
     pub fn new(table: impl Into<String>) -> Self {
-        return Self {
+        Self {
             table: table.into(),
             fields: Vec::new(),
             join: Vec::new(),
@@ -123,7 +123,7 @@ impl <DB: SqlxDatabase>Statement<DB> {
             limit: None,
             offset: None,
             values: HashMap::new(),
-        };
+        }
     }
 }
 

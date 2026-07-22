@@ -20,7 +20,7 @@ impl Database {
             .get()
             .expect("Database not initialized! Call Database::init().await first.");
 
-        Query::new(db, table)
+        Query::new(db, table.into())
     }
 }
 

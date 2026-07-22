@@ -102,14 +102,12 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+    async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
-        sqlx::query_with::<Self::DB, _>(&sql, arguments)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
+        self
+            .execute(sql, arguments)
+            .await
     }
 
     async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
@@ -186,19 +184,12 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn get<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
-    {
-        self.all(statement).await
-    }
-
     async fn paginate<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<crate::Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
     {
         let (items, total) = tokio::try_join!(
-            self.get::<O>(statement),
+            self.all::<O>(statement),
             self.count(statement)
         )?;
 

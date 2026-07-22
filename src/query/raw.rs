@@ -1,14 +1,14 @@
 use std::mem;
 
-use crate::{Entity, Executor, QueryResult, Result, types::Bindable};
+use crate::{Entity, Executor, Result, types::{Bindable, QueryResult}};
 
-pub struct RawQuery<'e, E: Executor> {
+pub struct Raw<'e, E: Executor> {
     sql: String,
     arguments: <E::DB as sqlx::Database>::Arguments<'e>,
     executor: &'e E,
 }
 
-impl <'e, E: Executor>RawQuery<'e, E> {
+impl <'e, E: Executor>Raw<'e, E> {
     pub fn new(executor: &'e E, sql: impl Into<String>) -> Self {
         return Self {
             sql: sql.into(),
@@ -17,40 +17,43 @@ impl <'e, E: Executor>RawQuery<'e, E> {
         };
     }
 
-    pub fn bind<V, O>(&mut self, value: V) -> Result<Vec<O>>
+    pub fn bind<V, O>(&mut self, value: V) -> &mut Self
     where
         V: Bindable<E::DB>,
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
-        todo!()
+        value
+            .bind_to(&mut self.arguments)
+            .unwrap();
+        self
     }
 
-    pub async fn execute_as<O>(&mut self) -> Result<Vec<O>>
+    pub async fn execute<O>(&mut self) -> Result<impl QueryResult>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
-        return self
-            .fetch_all()
-            .await;
+        self
+            .executor
+            .execute(self.sql.clone(), mem::take(&mut self.arguments))
+            .await
     }
 
-    pub async fn fetch_one<O>(&mut self) -> Result<O>
+    pub async fn first<O>(&mut self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
-        return self
+        self
             .executor
             .fetch_one(self.sql.clone(), mem::take(&mut self.arguments))
-            .await;
+            .await
     }
 
-    pub async fn fetch_all<O>(&mut self) -> Result<Vec<O>>
+    pub async fn all<O>(&mut self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
-        return self
+        self
             .executor
             .fetch_all(self.sql.clone(), mem::take(&mut self.arguments))
-            .await;
+            .await
     }
 }

@@ -7,8 +7,12 @@ pub use database::sqlite::SQLite;
 pub use derive::Entity;
 pub use executor::Executor;
 
+pub use sqlx::MySqlPool;
+pub use sqlx::PgPool;
+pub use sqlx::SqlitePool;
+
 use crate::{
-    query::{raw::Raw, Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup},
+    query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup, insert::Insert, raw::Raw},
     types::{Bindable, Connector, JoinType, Order, QueryResult, WhereClause},
 };
 
@@ -43,6 +47,11 @@ impl<'q, E: Executor> Query<'q, E> {
     #[inline]
     pub fn raw(&self, sql: impl Into<String>) -> Raw<'_, E> {
         Raw::new(self.executor, sql)
+    }
+
+    #[inline]
+    pub fn insert(&mut self) -> Insert<'_, E>{
+        Insert::new(self.statement.table.clone(), self.executor)
     }
 
     fn join_push(
@@ -261,29 +270,25 @@ impl<'q, E: Executor> Query<'q, E> {
         self
     }
 
-    pub fn limit<V>(mut self, limit: V) -> Self
+    pub fn limit(mut self, limit: i64) -> Self
     where
-        V: Bindable<E::DB>,
+        for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
     {
-        self.statement.limit = Some(Limit {
-            value: Box::new(limit),
-        });
+        self.statement.limit = Some(Limit::new(limit));
         self
     }
 
-    pub fn offset<V>(mut self, offset: V) -> Self
+    pub fn offset(mut self, offset: i64) -> Self
     where
-        V: Bindable<E::DB>,
+        for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
     {
-        self.statement.offset = Some(Offset {
-            value: Box::new(offset),
-        });
+        self.statement.offset = Some(Offset::new(offset));
         self
     }
 
     pub async fn first<O>(&self) -> Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
     {
         self
             .executor
@@ -293,11 +298,30 @@ impl<'q, E: Executor> Query<'q, E> {
 
     pub async fn get<O>(&self) -> Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
     {
         self
             .executor
             .all(&self.statement)
+            .await
+    }
+
+    pub async fn paginate<O>(&mut self, page: i64, limit: i64) -> Result<Pagination<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
+    {
+        let limit_stable = if limit < 0 { 0 } else { limit };
+        let page_stable = if page < 0 { 1 } else { page };
+        let offset: i64 = limit_stable * page_stable - limit_stable;
+
+        self.statement.limit = Some(Limit::new(limit_stable));
+        self.statement.offset = Some(Offset::new(offset));
+        self.statement.page = Some(page); // Should get it using (limit and offset)
+
+        self
+            .executor
+            .paginate(&mut self.statement)
             .await
     }
 }

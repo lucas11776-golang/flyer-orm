@@ -1,6 +1,6 @@
 # TODO
 
-- Need to remove `&mut self` in queries
+-  Should Find common thing and refactor time to helpers of pattern. 
 
 
 # Install Package From Github
@@ -19,3 +19,6 @@ sqlx = { git = "https://github.com/lucas11776-golang/sqlx", branch = "arguments"
 sqlx = { path = "/Users/lucas11776/Desktop/OpenSource/sqlx", version = "0.9.0-alpha.1", features = ["runtime-tokio", "tls-rustls", "any", "sqlite", "mysql", "postgres", "macros", "uuid", "derive", "migrate"] }
 
 -->
+
+
+

@@ -1,8 +1,12 @@
-use sqlx::{Database as SqlxDatabase, SqlitePool};
-
 use crate::{
+    SqlitePool,
+    Entity,
+    Executor,
+    Pagination,
+    QueryResult,
+    Result,
     database::sqlite::builder::QueryBuilder,
-    Executor, Pagination, QueryResult,
+    query::Statement,
 };
 
 mod builder;
@@ -54,7 +58,7 @@ impl Executor for SQLite {
         Self { pool }
     }
 
-    fn to_sql<'q>(&self, statement: &crate::Statement<Self::DB>) -> String {
+    fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String {
         QueryBuilder::new(true).to_sql(statement)
     }
 
@@ -66,7 +70,7 @@ impl Executor for SQLite {
         &self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> crate::Result<impl crate::QueryResult> {
+    ) -> Result<impl crate::QueryResult> {
         let result = sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
             .await?;
@@ -81,9 +85,9 @@ impl Executor for SQLite {
         &self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> crate::Result<O>
+    ) -> Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_one(&self.pool)
@@ -95,9 +99,9 @@ impl Executor for SQLite {
         &self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> crate::Result<Vec<O>>
+    ) -> Result<Vec<O>>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
             .fetch_all(&self.pool)
@@ -105,7 +109,7 @@ impl Executor for SQLite {
             .map_err(Into::into)
     }
 
-    async fn insert<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<impl QueryResult> {
+    async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
         self
@@ -113,9 +117,9 @@ impl Executor for SQLite {
             .await
     }
 
-    async fn insert_as<'q, O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
+    async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
@@ -135,27 +139,23 @@ impl Executor for SQLite {
             .map_err(Into::into)
     }
 
-    async fn update<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
-        sqlx::query_with::<Self::DB, _>(&sql, arguments)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
+        self
+            .execute(sql, arguments)
+            .await
     }
 
-    async fn delete<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<()> {
+    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
-        sqlx::query_with::<Self::DB, _>(&sql, arguments)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
+        self
+            .execute(sql, arguments)
+            .await
     }
 
-    async fn count<'q>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<u64> {
+    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<i64> {
         let (sql, arguments) = QueryBuilder::new(false)
             .select(&["COUNT(*) AS total".into()])
             .from(&statement.table)
@@ -168,31 +168,31 @@ impl Executor for SQLite {
         sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, arguments)
             .fetch_one(&self.pool)
             .await
-            .map(|total| total as u64)
+            .map(|total| total)
             .map_err(Into::into)
     }
 
-    async fn first<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<O>
+    async fn first<O>(&self, statement: &Statement<Self::DB>) -> Result<O>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
         self.fetch_one(sql, arguments).await
     }
 
-    async fn all<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<Vec<O>>
+    async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
         self.fetch_all(sql, arguments).await
     }
 
-    async fn paginate<O>(&self, statement: &crate::Statement<Self::DB>) -> crate::Result<crate::Pagination<O>>
+    async fn paginate<O>(&self, statement: &Statement<Self::DB>) -> Result<Pagination<O>>
     where
-        O: crate::Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin,
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         let (items, total) = tokio::try_join!(
             self.all::<O>(statement),
@@ -200,10 +200,10 @@ impl Executor for SQLite {
         )?;
 
         Ok(Pagination {
-            total,
-            page: 1,
-            per_page: 10,
-            items,
+            total: total,
+            page: statement.page.unwrap(),
+            per_page: statement.limit.as_ref().unwrap().value.parse().unwrap(),
+            items: items,
         })
     }
 }

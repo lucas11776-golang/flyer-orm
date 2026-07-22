@@ -1,9 +1,10 @@
-use std::result::Result;
+use std::{any::Any, result::Result};
 
 use sqlx::{Arguments, error::BoxDynError};
 
 pub trait Bindable<DB: sqlx::Database>: Send + 'static {
     fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError>;
+    fn as_any(&self) -> &dyn Any;
 }
 
 impl<DB, T> Bindable<DB> for T
@@ -14,6 +15,19 @@ where
     #[inline]
     fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError> {
         return args.add(self.clone());
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl<DB: sqlx::Database> dyn Bindable<DB> {
+    pub fn parse<T: 'static + Clone>(&self) -> Option<T> {
+        self
+            .as_any()
+            .downcast_ref::<T>()
+            .cloned()
     }
 }
 

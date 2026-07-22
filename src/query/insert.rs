@@ -1,17 +1,15 @@
-use std::mem;
-
 use crate::{Entity, Executor, Result, query::Statement, types::{Bindable, QueryResult}};
 
-pub struct RawQuery<'e, E: Executor> {
+pub struct Insert<'e, E: Executor> {
     executor: &'e E,
-    statement: &'e mut Statement<E::DB>,
+    statement: Statement<E::DB>,
 }
 
-impl <'e, E: Executor>RawQuery<'e, E> {
-    pub fn new(executor: &'e E, statement: &'e mut Statement<E::DB>) -> Self {
+impl <'e, E: Executor>Insert<'e, E> {
+    pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
         Self {
             executor: executor,
-            statement: statement
+            statement: Statement::new(table)
         }
     }
 
@@ -23,7 +21,6 @@ impl <'e, E: Executor>RawQuery<'e, E> {
             .statement
             .values
             .insert(column.into(), Box::new(value));
-
         self
     }
 
@@ -33,38 +30,17 @@ impl <'e, E: Executor>RawQuery<'e, E> {
     {
         self
             .executor
-            .insert(self.statement)
+            .insert(&self.statement)
             .await
     }
 
-
-    // pub async fn execute<O>(&mut self) -> Result<impl QueryResult>
-    // where
-    //     O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
-    // {
-    //     self
-    //         .executor
-    //         .execute(self.sql.clone(), mem::take(&mut self.arguments))
-    //         .await
-    // }
-
-    // pub async fn first<O>(&mut self) -> Result<O>
-    // where
-    //     O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
-    // {
-    //     self
-    //         .executor
-    //         .fetch_one(self.sql.clone(), mem::take(&mut self.arguments))
-    //         .await
-    // }
-
-    // pub async fn all<O>(&mut self) -> Result<Vec<O>>
-    // where
-    //     O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
-    // {
-    //     self
-    //         .executor
-    //         .fetch_all(self.sql.clone(), mem::take(&mut self.arguments))
-    //         .await
-    // }
+    pub async fn execute_as<O>(&mut self) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+    {
+        self
+            .executor
+            .insert_as(&self.statement)
+            .await
+    }
 }

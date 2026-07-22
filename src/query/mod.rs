@@ -93,8 +93,26 @@ pub struct Limit<DB: sqlx::Database> {
     pub value: Box<dyn Bindable<DB>>,
 }
 
+impl <DB: sqlx::Database>Limit<DB> {
+    pub fn new(limit: i64) -> Self
+    where
+        for<'i> i64: sqlx::Encode<'i, DB> + sqlx::Type<DB>,
+    {
+        Self { value: Box::new(limit) }
+    }
+}
+
 pub struct Offset<DB: sqlx::Database> {
     pub value: Box<dyn Bindable<DB>>,
+}
+
+impl <DB: sqlx::Database>Offset<DB> {
+    pub fn new(offset: i64) -> Self
+    where
+        for<'i> i64: sqlx::Encode<'i, DB> + sqlx::Type<DB>,
+    {
+        Self { value: Box::new(offset) }
+    }
 }
 
 pub struct Statement<DB: sqlx::Database> {
@@ -107,6 +125,7 @@ pub struct Statement<DB: sqlx::Database> {
     pub order_by: Vec<OrderValue>,
     pub limit: Option<Limit<DB>>,
     pub offset: Option<Offset<DB>>,
+    pub page: Option<i64>,
     pub values: HashMap<String, Box<dyn Bindable<DB>>>
 }
 
@@ -122,6 +141,7 @@ impl <DB: sqlx::Database>Statement<DB> {
             order_by: Vec::new(),
             limit: None,
             offset: None,
+            page: None,
             values: HashMap::new(),
         }
     }
@@ -129,8 +149,8 @@ impl <DB: sqlx::Database>Statement<DB> {
 
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct Pagination<Entity> {
-    pub total: u64,
-    pub page: u64,
-    pub per_page: u64,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
     pub items: Vec<Entity>
 }

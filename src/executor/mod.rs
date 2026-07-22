@@ -32,11 +32,11 @@ pub trait Executor {
 
     async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult>;
 
-    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<()>;
+    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult>;
 
-    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<u64>;
+    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<i64>;
 
-    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<()>;
+    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult>;
 
     async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
     where

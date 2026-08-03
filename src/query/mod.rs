@@ -11,6 +11,7 @@ pub use crate::Entity;
 
 pub mod insert;
 pub mod update;
+pub mod delete;
 pub mod raw;
 
 pub struct WhereGroup<DB: sqlx::Database> {

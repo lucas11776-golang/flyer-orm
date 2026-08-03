@@ -1,5 +1,4 @@
 use std::any::Any;
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -13,6 +12,7 @@ pub use sqlx::MySqlPool;
 pub use sqlx::PgPool;
 pub use sqlx::SqlitePool;
 
+use crate::query::delete::Delete;
 use crate::query::update::Update;
 use crate::{
     query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup, insert::Insert, raw::Raw},
@@ -65,6 +65,33 @@ pub struct Query<'q, E: Executor> {
     statement: Statement<E::DB>,
 }
 
+#[derive(Debug)]
+pub struct Transaction<'t, E: Executor> {
+    transaction: sqlx::Transaction<'t, E::DB>
+}
+
+impl <'t, E: Executor>Transaction<'t, E> {
+    pub(crate) fn new(transaction: sqlx::Transaction<'t, E::DB>) -> Self {
+        Self { transaction: transaction }
+    }
+
+    pub async fn commit(self) -> Result<()> {
+        self
+            .transaction
+            .commit()
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub async fn rollback(self) -> Result<()> {
+        self
+            .transaction
+            .rollback()
+            .await
+            .map_err(|e| e.into())
+    }
+}
+
 impl<'q, E: Executor> Query<'q, E> {
     #[inline]
     pub fn new(executor: &'q E, ) -> Self {
@@ -77,6 +104,17 @@ impl<'q, E: Executor> Query<'q, E> {
     pub fn table(mut self, table: impl Into<String>) -> Self {
         self.statement.table = table.into();
         self
+    }
+
+    pub async fn transaction(&self) -> Result<Transaction<'q, E>> {
+        let transaction = self
+            .executor
+            .db()
+            .begin()
+            .await
+            .unwrap();
+
+        Ok(Transaction::new(transaction))
     }
 
     #[inline]
@@ -97,6 +135,11 @@ impl<'q, E: Executor> Query<'q, E> {
     #[inline]
     pub fn update(&mut self) -> Update<'_, E>{
         Update::new(self.statement.table.clone(), self.executor)
+    }
+
+    #[inline]
+    pub fn delete(&mut self) -> Delete<'_, E>{
+        Delete::new(self.statement.table.clone(), self.executor)
     }
 
     fn join_push(
@@ -350,8 +393,14 @@ impl<'q, E: Executor> Query<'q, E> {
             .all(&self.statement)
             .await
     }
-    
 
+    pub async fn count(&self) -> Result<i64> {
+        self
+            .executor
+            .count(&self.statement)
+            .await
+    }
+    
     pub async fn paginate<O>(&mut self, page: i64, limit: i64) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,

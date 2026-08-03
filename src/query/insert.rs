@@ -28,10 +28,7 @@ impl <'e, E: Executor>Insert<'e, E> {
         self
     }
 
-    pub async fn execute<O>(&mut self) -> Result<impl QueryResult>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
-    {
+    pub async fn execute(&mut self) -> Result<impl QueryResult> {
         self
             .executor
             .insert(&self.statement)

@@ -5,12 +5,12 @@ use crate::{
     types::{Bindable, Connector, QueryResult, WhereClause}
 };
 
-pub struct Update<'e, E: Executor> {
+pub struct Delete<'e, E: Executor> {
     executor: &'e E,
     statement: Statement<E::DB>,
 }
 
-impl <'e, E: Executor>Update<'e, E> {
+impl <'e, E: Executor>Delete<'e, E> {
     pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
         Self {
             executor: executor,
@@ -86,21 +86,10 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self
-            .statement
-            .values
-            .insert(column.into(), Box::new(value));
-        self
-    }
-
     pub async fn execute(&mut self) -> Result<impl QueryResult> {
         self
             .executor
-            .update(&self.statement)
+            .delete(&self.statement)
             .await
     }
 }

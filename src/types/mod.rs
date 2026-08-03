@@ -1,37 +1,61 @@
-use crate::query;
+use std::any::Any;
 
-#[derive(Clone, Debug, Default)]
-pub(crate) enum Condition {
-    #[default]
-    AND,
-    OR
+use sqlx::{Arguments, error::BoxDynError};
+
+use crate::Result;
+
+pub trait Bindable<DB: sqlx::Database>: Send + 'static {
+    fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError>;
+    fn as_any(&self) -> &dyn Any;
 }
 
-impl ToString for Condition {
+impl<DB, T> Bindable<DB> for T
+where
+    DB: sqlx::Database,
+    T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Clone + Send + 'static,
+{
+    #[inline]
+    fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError> {
+        return args.add(self.clone());
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+impl<DB: sqlx::Database> dyn Bindable<DB> {
+    pub fn parse<T: 'static + Clone>(&self) -> Option<T> {
+        self
+            .as_any()
+            .downcast_ref::<T>()
+            .cloned()
+    }
+}
+
+pub trait QueryResult {
+    fn rows_affected(&self) -> u64;
+    fn last_inserted(&self) -> u64;
+}
+
+#[derive(Clone, Copy)]
+pub enum Connector {
+    And,
+    Or,
+}
+
+impl ToString for Connector {
     fn to_string(&self) -> String {
         return match self {
-            Condition::AND => String::from("AND"),
-            Condition::OR => String::from("OR"),
+            Connector::And => "AND".into(),
+            Connector::Or  => "OR".into(),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Where {
-    pub condition: Option<Condition>,
-    pub column: Option<String>,
-    pub operator: Option<String>,
-    pub group: Option<Box<Where>>
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Order {
-    pub column: String,
-    pub order: query::Order,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum JoinType {
+pub enum JoinType {
+    Join,
     InnerJoin,
     LeftJoin,
     RightJoin,
@@ -39,46 +63,73 @@ pub(crate) enum JoinType {
     CrossJoin
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct Join {
-    pub table: String,
-    pub column: String,
-    pub operator: String,
-    pub column_table: String, 
-    pub join_type: JoinType
+impl ToString for JoinType {
+    fn to_string(&self) -> String {
+        return match self {
+            JoinType::Join          => "JOIN".into(),
+            JoinType::LeftJoin      => "LEFT JOIN".into(),
+            JoinType::RightJoin     => "RIGHT JOIN".into(),
+            JoinType::InnerJoin     => "INNER JOIN".into(),
+            JoinType::FullOuterJoin => "FULL OUTER JOIN".into(),
+            JoinType::CrossJoin     => "CROSS JOIN".into(),
+        };
+    }
 }
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Having {
-    pub column: String,
-    pub operator: String,
+pub enum WhereClause<DB: sqlx::Database> {
+    Clause {
+        column: String,
+        operator: String,
+        value: Box<dyn Bindable<DB>>,
+        connector: Connector,
+    },
+    NullCheck {
+        column: String,
+        is_null: bool,
+        connector: Connector,
+    },
+    In {
+        column: String,
+        negated: bool,
+        values: Vec<Box<dyn Bindable<DB>>>,
+        connector: Connector,
+    },
+    Between {
+        column: String,
+        negated: bool,
+        low: Box<dyn Bindable<DB>>,
+        high: Box<dyn Bindable<DB>>,
+        connector: Connector,
+    },
+    Group {
+        conditions: Vec<WhereClause<DB>>,
+        connector: Connector,
+    },
 }
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct SQL {
-    pub table: String,
-    pub select: Vec<String>,
-    pub join: Vec<Join>,
-    pub where_queries: Vec<Where>,
-    pub group_by: Option<String>,
-    pub having: Option<Having>,
-    pub order_by: Option<Vec<Order>>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
-
-impl SQL {
-    pub fn new(table: &str) -> Self {
-        return Self {
-            table: table.to_string(),
-            select: Vec::new(),
-            join: Vec::new(),
-            where_queries: Vec::new(),
-            having: None,
-            group_by: None,
-            order_by: None,
-            limit: None,
-            offset: None,
+impl<DB: sqlx::Database> WhereClause<DB> {
+    pub fn connector(&self) -> Connector {
+        match self {
+            WhereClause::Clause { connector, .. }    => *connector,
+            WhereClause::Group { connector, .. }     => *connector,
+            WhereClause::NullCheck { connector, .. } => *connector,
+            WhereClause::In { connector, .. }        => *connector,
+            WhereClause::Between { connector, .. }   => *connector,
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum Order {
+    ASC,
+    DESC
+}
+
+impl ToString for Order {
+    fn to_string(&self) -> String {
+        return match self {
+            Order::ASC  => "ASC".into(),
+            Order::DESC => "DESC".into(),
+        };
     }
 }

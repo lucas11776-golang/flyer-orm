@@ -1,35 +1,47 @@
-use std::marker::PhantomData;
+use crate::{Entity, Executor, Result, query::Statement, types::{Bindable, QueryResult}};
 
-use anyhow::Result;
-use sqlx::{Arguments, Encode, types::Type};
-
-use crate::{executor::Executor, query::Statement};
-
-pub struct Insert<'q, E: Executor> {
-    db: &'q E,
-    statement: &'q mut Statement<'q, E::T>,
-    _marker: PhantomData<E>
+pub struct Insert<'e, E: Executor> {
+    executor: &'e E,
+    statement: Statement<E::DB>,
 }
 
-impl <'q, E>Insert<'q, E>
-where
-    E: Executor
-{
-    pub(crate) fn new(db: &'q E, statement: &'q mut Statement<'q, E::T>) -> Self {
-        return Self {
-            db: db,
-            statement: statement,
-            _marker: PhantomData,
+impl <'e, E: Executor>Insert<'e, E> {
+    pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
+        Self {
+            executor: executor,
+            statement: {
+                let mut stmt = Statement::new();
+                stmt.table = table.into();
+                stmt
+            }
         }
     }
 
-    pub fn bind<T: 'q + Encode<'q, E::T> + Type<E::T>>(&'q mut self, value: T) -> &'q mut Self {
-        self.statement.arguments.add(value).unwrap();
-
-        return self;
+    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self
+            .statement
+            .values
+            .insert(column.into(), Box::new(value));
+        self
     }
 
-    pub async fn execute(&'q mut self) -> Result<()> {
-        return self.db.insert(self.statement).await;
+    pub async fn execute(&mut self) -> Result<impl QueryResult> {
+        self
+            .executor
+            .insert(&self.statement)
+            .await
+    }
+
+    pub async fn execute_as<O>(&mut self) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+    {
+        self
+            .executor
+            .insert_as(&self.statement)
+            .await
     }
 }

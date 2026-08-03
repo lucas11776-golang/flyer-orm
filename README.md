@@ -1,308 +1,196 @@
-# Flyer - ORM Framework
+# Flyer ORM 🚀
 
+A lightweight, asynchronous, and intuitive ORM for Rust. Designed to be simple to use while providing powerful features like a type-safe query builder, easy pagination, and transaction support.
 
-## Information
+Currently supports **SQLite**, with a focus on ease of use and developer productivity.
 
-Flyer-ORM is a powerful and lightweight Object-Relational Mapping (ORM) framework for Rust, designed to make database interactions intuitive and efficient. It provides a fluent query builder and supports multiple database backends with built-in connection management.
+---
 
-### Supports
+## 🛠 Getting Started
 
-- MySQL
-- PostgreSQL
-- SQLite
+### 1. Connection Registration
 
-
-## Installation
-
-Add `flyer-orm` to your `Cargo.toml`. By default, it includes basic macros and JSON support. You must specify your database driver and runtime.
-
-```toml
-[dependencies]
-# Example: Using SQLite with Tokio and Rustls
-flyer-orm = { version = "0.0.13", features = ["sqlite", "runtime-tokio", "tls-rustls"] }
-```
-
-### Available Features
-
-Flyer-ORM forwards features to `sqlx`, allowing you to keep your binary lean by only including what you need.
-
-#### Database Drivers
-- `sqlite`: Enable SQLite support.
-- `postgres`: Enable PostgreSQL support.
-- `mysql`: Enable MySQL support.
-- `any`: Enable the "Any" database driver (runtime-determined).
-
-#### Runtimes (Pick One)
-- `runtime-tokio`: Use the Tokio runtime.
-- `runtime-async-std`: Use the async-std runtime.
-- `runtime-smol`: Use the smol runtime.
-
-#### TLS Providers (Required for Postgres/MySQL)
-- `tls-rustls`: Use Rustls (recommended).
-- `tls-native-tls`: Use the system's native TLS.
-
-#### Extra Types
-- `uuid`: Support for UUID types.
-- `chrono`: Support for Chrono date/time types.
-- `time`: Support for Time date/time types.
-- `rust_decimal`: Support for Decimal types.
-
-#### Bundles
-- `full`: Enables all database drivers, common types (uuid, chrono, decimal), and migrations.
-
-## Getting Started
-
-### 1. Create a project
-```sh
-cargo new my_app
-cd my_app
-```
-
-### 2. Configure Cargo.toml
-Add `flyer-orm` with the features you need:
-
-```toml
-[dependencies]
-flyer-orm = { version = "0.0.13", features = ["postgres", "runtime-tokio", "tls-rustls"] }
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1", features = ["derive"] }
-```
-
-### Connection Management
-
-Flyer-ORM allows you to manage multiple database connections easily.
+Register your database connections at the start of your application. You can manage multiple named connections.
 
 ```rust
-use flyer_orm::{DB, databases::sqlite::SQLite};
+use flyer_orm::{Connection, SQLite};
 
 #[tokio::main]
 async fn main() {
-    // Add a named connection
-    DB::add("main", "sqlite:database.sqlite");
-
-    // Retrieve a database instance by name
-    let db = DB::db::<SQLite>("main").await;
-    
-    // Or use a URL directly without registration
-    let db = DB::db_with_url::<SQLite>("sqlite::memory:").await;
+    // ":memory:" creates an in-memory database for testing
+    // You can also use a file path like "my_database.sqlite"
+    Connection::add("default", SQLite::new(":memory:").await);
 }
 ```
 
-### Basic Queries
+### 2. Defining Your Entities
 
-Flyer-ORM provides a fluent interface for building SQL queries.
+Entities are simple Rust structs that map to your database tables. Use the `Entity` and `Serialize` derives.
 
 ```rust
-use flyer_orm::{Database, databases::sqlite::SQLite, query::Order};
+use flyer_orm::Entity;
 use serde::Serialize;
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, Entity, Serialize)]
 pub struct User {
-    pub id: u64,
+    pub id: i64,          // Auto-increment primary key
     pub name: String,
     pub email: String,
-}
-
-pub struct Connection;
-
-impl Connection {
-    pub async fn db() -> Database<SQLite> {
-        return Database::<SQLite>::new(":memory:").await;
-    }
-}
-
-#[tokio::main]
-async fn main() {
-    let db = Connection::db().await;
-
-    // Fetch users with filters
-    let users = db.query("users")
-        .select(vec!["id", "name", "email"])
-        .r#where("id", ">", 10)
-        .and_where("name", "LIKE", "%John%")
-        .order_by("id", Order::DESC)
-        .limit(10)
-        .all::<User>()
-        .await
-        .unwrap();
-
-    println!("Users: {:?}", users);
+    pub status: String,
 }
 ```
 
-### Joins
+### 3. Recommended Pattern: The Database Helper
 
-You can easily perform various types of joins including Inner, Left, Right, Full Outer, and Cross Joins.
-
-```rust
-async fn get_user_projects(db: &Database<SQLite>) {
-    let results = db.query("users")
-        .select(vec!["users.name", "projects.title"])
-        .join("projects", "projects.user_id", "=", "users.id")
-        .all::<UserProject>() // Assuming UserProject struct matches the results
-        .await
-        .unwrap();
-}
-```
-
-### Insert
-
-Inserting data is straightforward. You can insert raw data or insert and retrieve the resulting object.
+To make your code cleaner, it's recommended to create a helper struct to avoid repeating connection names.
 
 ```rust
-#[derive(Debug, sqlx::FromRow, Serialize)]
-pub struct User {
-    pub uuid: String,
-    pub first_name: String,
-    pub email: String,
-}
+use flyer_orm::{Connection, Query, SQLite, query::raw::Raw};
 
-async fn create_user(db: &Database<SQLite>) {
-    // Insert and return the record mapped to a struct
-    let user = db.query("users")
-        .insert_as::<User>(vec!["uuid", "first_name", "email"])
-        .bind(uuid::Uuid::new_v4().to_string())
-        .bind("Jane Doe")
-        .bind("jane@example.com")
-        .execute()
-        .await
-        .unwrap();
+pub struct DB;
 
-    // Basic insert without return mapping
-    db.query("projects")
-        .insert(vec!["title", "user_id"])
-        .bind("New Website")
-        .bind(1)
-        .execute()
-        .await
-        .unwrap();
-}
-```
-
-### Update
-
-N.B The update order must be:
-- Bind
-- Where
-
-```rust
-async fn update_user(db: &Database<SQLite>) {
-    db.query("users")
-        .update(vec!["first_name"])
-        .bind("Updated Name")
-        .r#where("uuid", "=", "some-uuid")
-        .execute()
-        .await
-        .unwrap();
-}
-```
-
-### Delete
-
-```rust
-async fn delete_user(db: &Database<SQLite>) {
-    db.query("users")
-        .r#where("id", "=", 1)
-        .delete()
-        .await
-        .unwrap();
-}
-```
-
-### Pagination
-
-Flyer-ORM handles complex pagination with ease, returning total counts and current page items.
-
-```rust
-async fn list_paginated_users(db: &Database<SQLite>) {
-    let pagination = db.query("users")
-        .paginate::<User>(10, 1) // 10 items per page, page 1
-        .await
-        .unwrap();
-
-    println!("Total: {}", pagination.total);
-    println!("Current Page: {}", pagination.page);
-    println!("Items: {:?}", pagination.items);
-}
-```
-
-### Transactions
-
-Execute multiple operations safely within a database transaction.
-
-```rust
-async fn safe_operation(db: &Database<SQLite>) {
-    let transaction = db.transaction().await.unwrap();
-    
-    // Perform operations...
-    // Note: Transaction support is integrated with the underlying executor.
-    
-    transaction.commit().await.unwrap();
-    // or
-    // transaction.rollback().await.unwrap();
-}
-```
-
-### Raw SQL Execution
-
-For complex queries or migrations, you can execute raw SQL directly. The `execute` method returns a `QueryResult` which provides information about the operation.
-
-```rust
-use flyer_orm::query::QueryResult;
-
-async fn run_migrations(db: &Database<SQLite>) {
-    let schema = "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)";
-    let result = db.execute(schema).await.unwrap();
-    
-    println!("Rows affected: {}", result.rows_affected());
-}
-
-async fn raw_query(db: &Database<SQLite>) {
-    let users: Vec<User> = db.query("users")
-        .query_all::<User, String>("SELECT * FROM users WHERE email = ?", vec!["test@test.com".to_string()])
-        .await
-        .unwrap();
-}
-```
-
-### Connection Pattern
-
-The recommended pattern for managing your database instance is to use a `Connection` struct. This makes it easy to switch between different database backends (MySQL, Postgres, SQLite) by simply changing the implementation of the `db()` function.
-
-```rust
-use flyer_orm::{Database, databases::{mysql::MySQL, postgres::Postgres, sqlite::SQLite}};
-
-pub struct Connection;
-
-impl Connection {
-    // SQLite Implementation
-    pub async fn db() -> Database<SQLite> {
-        return Database::<SQLite>::new(":memory:").await;
+impl DB {
+    /// Start a new query on a specific table
+    pub fn query<'q>(table: impl Into<String>) -> Query<'q, SQLite> {
+        Connection::query("default").table(table)
     }
 
-    // Postgres Implementation
-    // pub async fn db() -> Database<Postgres> {
-    //     return Database::<Postgres>::new("postgresql://user:pass@127.0.0.1:5432/db").await;
-    // }
-
-    // MySQL Implementation
-    // pub async fn db() -> Database<MySQL> {
-    //     return Database::<MySQL>::new("mysql://user:pass@127.0.0.1:3306/db").await;
-    // }
+    /// Execute raw SQL queries
+    pub fn raw<'q>(sql: impl Into<String>) -> Raw<'q, SQLite> {
+        Connection::raw("default", sql)
+    }
 }
 ```
 
-### Utilities
+---
 
-Check for existence or count records quickly.
+## 🔍 Querying Data
+
+### Select All or One
+```rust
+// Fetch all active users
+let users = DB::query("users")
+    .r#where("status", "=", "active")
+    .all::<User>()
+    .await?;
+
+// Fetch the first user by email
+let user = DB::query("users")
+    .r#where("email", "=", "john@example.com")
+    .first::<User>()
+    .await?;
+```
+
+### Complex Filtering (AND/OR)
+```rust
+let results = DB::query("products")
+    .r#where("price", ">=", 10)
+    .and_where("price", "<=", 50)
+    .and_where("category", "=", "electronics")
+    .all::<Product>()
+    .await?;
+```
+
+### Counting Records
+```rust
+let total_users = DB::query("users").count().await?;
+```
+
+---
+
+## ✍️ Modifying Data
+
+### Insertion
+You can insert data and immediately retrieve the resulting object.
 
 ```rust
-async fn utilities(db: &Database<SQLite>) {
-    let count = db.query("users").count().await.unwrap();
-    let exists = db.query("users").r#where("id", "=", 1).exists().await.unwrap();
-    
-    // Preview the generated SQL
-    let sql = db.query("users").r#where("status", "=", "active").to_sql().unwrap();
-    println!("Generated SQL: {}", sql);
+let new_user = DB::query("users")
+    .insert()
+    .bind("name", "Alice".to_string())
+    .bind("email", "alice@example.com".to_string())
+    .bind("status", "pending".to_string())
+    .execute_as::<User>() // Automatically maps to the User struct
+    .await?;
+```
+
+### Updating
+```rust
+DB::query("users")
+    .update()
+    .r#where("id", "=", 1)
+    .bind("status", "active".to_string())
+    .execute()
+    .await?;
+```
+
+### Deleting
+```rust
+DB::query("users")
+    .delete()
+    .r#where("status", "=", "banned")
+    .execute()
+    .await?;
+```
+
+---
+
+## 🚀 Advanced Features
+
+### 📄 Pagination Made Easy
+Flyer ORM handles the math for you.
+
+```rust
+// paginate::<EntityType>(page_number, items_per_page)
+let pagination = DB::query("posts")
+    .paginate::<Post>(1, 15) // Page 1, 15 items per page
+    .await?;
+
+println!("Current Page: {}", pagination.page);
+println!("Total Pages: {}", pagination.total_pages());
+println!("Total Items: {}", pagination.total);
+
+for post in pagination.items {
+    println!("- {}", post.title);
 }
 ```
+
+### ⚡ Raw SQL Execution
+Sometimes you just need to write SQL.
+
+```rust
+// Executing a command (DDL or DML)
+DB::raw("CREATE TABLE IF NOT EXISTS logs (message TEXT)").execute().await?;
+
+// Executing with parameters (prevents SQL injection)
+DB::raw("INSERT INTO products (name, price) VALUES ($1, $2)")
+    .bind("Coffee".to_string())
+    .bind(4.99)
+    .execute()
+    .await?;
+```
+
+### 🔐 Transactions
+Ensure data integrity with atomic operations.
+
+```rust
+let mut query = DB::query("accounts");
+let tx = query.transaction().await?;
+
+// All operations here are part of the transaction
+query.update().r#where("id", "=", 1).bind("balance", 100).execute().await?;
+query.update().r#where("id", "=", 2).bind("balance", 200).execute().await?;
+
+// Commit to save, or it will automatically rollback if dropped
+tx.commit().await?;
+```
+
+---
+
+## 📂 Examples
+Check out the full runnable examples in the `examples/` directory for more details:
+- `01_insert.rs`: Full insertion flow.
+- `02_query.rs`: Select patterns and raw queries.
+- `03_update.rs`: Updating records.
+- `04_delete.rs`: Deletion patterns.
+- `05_pagination.rs`: Paging through data.
+- `06_transaction.rs`: Working with transactions.

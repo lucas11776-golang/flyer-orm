@@ -1,71 +1,91 @@
-use std::env;
-
 use anyhow::Result;
-use flyer_orm::{Database, databases::{postgres::Postgres, sqlite::SQLite}};
+use flyer_orm::{Executor, Query, SQLite};
+use serde::Serialize;
+use tokio::{fs::File, io::AsyncWriteExt};
+use std::sync::OnceLock;
+use flyer_orm::Entity;
 
+// static CONNECTION: OnceLock<Postgres> = OnceLock::new();
+static CONNECTION: OnceLock<SQLite> = OnceLock::new();
 
-// use sqlx::postgres::types::
+pub struct Database;
 
+impl Database {
+    pub async fn init() {
+        // CONNECTION
+        //     .set(Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await)
+        //     .ok()
+        //     .expect("Database already initialized!");
+        CONNECTION
+            .set(SQLite::new("database.sqlite").await)
+            .ok()
+            .expect("Database already initialized!");
+    }
 
-#[derive(Debug, sqlx::FromRow)]
-pub struct Project {
-    // pub id: String,
-    pub name: String
-}
+    pub fn query<'q>() -> Query<'q, SQLite> {
+        let db = CONNECTION
+            .get()
+            .expect("Database not initialized! Call Database::init().await first.");
 
-
-
-#[derive(Debug, sqlx::FromRow)]
-pub struct User {
-    // pub id: Uuid,
-    pub email: String
-}
-
-
-#[derive(Debug, sqlx::FromRow)]
-pub struct Subscription {
-    pub id: i32,
-    // pub created_at: i8,
-    pub email: String
-}
-
-
-pub struct Connection;
-
-impl Connection {
-    // pub async fn db() -> Database<SQLite> {
-    //     return Database::<SQLite>::new("./database.sqlite").await;
-    // }
-    pub async fn db() -> Database<Postgres> {
-        return Database::<Postgres>::new(env::var("DATABASE_URL").unwrap().as_str()).await;
+        Query::new(db)
     }
 }
 
+#[derive(Serialize, Entity, Debug)]
+pub struct User {
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
+    pub notifications: bool,
+    // pub token: String,
+}
+
+#[derive(Serialize, Entity, Debug)]
+pub struct Prompt {
+    pub uuid: String,
+    pub question: String,
+    pub answer: String,
+    pub thinking: String,
+}
+
 #[tokio::main]
+async fn main() -> Result<()> {
+    Database::init().await;
 
- async fn main() -> Result<()> {
-    dotenv::from_path(".env").unwrap();
-
-    let db = Connection::db().await;
-
-    // db.query("users")
-    //     .update(vec!["first_name", "last_name"])
-    //     .bind("Jeo")
-    //     .bind("Deo")
-    //     .r#where("email", "=", "thembangubeni04@gmail.com")
-    //     .execute()
+    // let users = Database::query("users")
+    //     // .join("password_resets", "users.id", "=", "password_resets.user_id")
+    //     // .r#where("email", "=", "thembangubeni04@gmail.com")
+    //     // .or_where("email", "=", "themba@gmail.com")
+    //     .where_group(|group| {
+    //         group
+    //             .r#where("email", "=", "thembangubeni04@gmail.com");
+    //             // .or_where("email", "=", "themba@gmail.com");
+    //     })
+    //     // .group_by("password_resets.token")
+    //     .get::<User>()
     //     .await
     //     .unwrap();
 
-    let subscription = db.query("subscription")
-        .insert_as::<Subscription>(vec!["email"])
-        .bind("thembangubeni04@gmail.com")
-        .execute()
+    // for user in users {
+    //     println!("\r\nUser: {:?}\r\n", user);
+    // }
+
+    let pagination = Database::query()
+        .table("prompts")
+        .paginate::<Prompt>(1, 2)
         .await
         .unwrap();
 
+    let mut file = File::create("pagination.json")
+        .await
+        .unwrap();
 
-    println!("INSERTED -> {:?}", subscription);
+    file
+        .write_all(serde_json::to_string_pretty(&pagination).unwrap().as_bytes())
+        .await
+        .unwrap();
+
+    println!("\r\nUSERS: {:?}\r\n", pagination);
 
     Ok(())
 }

@@ -1,84 +1,159 @@
-use anyhow::Result;
+use std::collections::HashMap;
+
 use serde::Serialize;
 
-use crate::types::SQL;
+use crate::{
+    WhereClause,
+    types::{Bindable, Connector, JoinType, Order}
+};
 
-pub mod update;
+pub use crate::Entity;
+
 pub mod insert;
-pub mod insert_as;
-pub mod where_group;
-pub mod raw_query;
-pub mod query_scalar;
+pub mod update;
+pub mod delete;
+pub mod raw;
 
-pub(crate) trait QueryBuilder<'q> {
-    fn new(statement: &'q SQL) -> Self where Self: Sized;
-    fn query(&mut self) -> String;
-    fn insert(&mut self) -> String;
-    fn update(&mut self) -> String;
-    fn delete(&mut self) -> String;
+pub struct WhereGroup<DB: sqlx::Database> {
+    pub conditions: Vec<WhereClause<DB>>,
 }
 
-pub trait QueryResult {
-    fn rows_affected(&self) -> u64;
-    fn last_inserted(&self) -> u64;
-}
-
-#[derive(Clone, Debug)]
-pub enum Order {
-    ASC,
-    DESC
-}
-
-impl ToString for Order {
-    fn to_string(&self) -> String {
-        return match self {
-            Order::ASC => String::from("ASC"),
-            Order::DESC => String::from("DESC"),
+impl<DB: sqlx::Database> WhereGroup<DB> {
+    pub fn new() -> Self {
+        return Self {
+            conditions: Vec::new()
         };
+    }
+
+    pub fn r#where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<DB>,
+    {
+        self.conditions.push(WhereClause::Clause {
+            connector: Connector::And,
+            column: c.into(),
+            operator: o.into(),
+            value: Box::new(v),
+        });
+        self
+    }
+
+    pub fn and_where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<DB>,
+    {
+        self.r#where(c, o, v)
+    }
+
+    pub fn or_where<V>(&mut self, c: impl Into<String>, o: impl Into<String>, v: V) -> &mut Self 
+    where
+        V: Bindable<DB>,
+    {
+        self.conditions.push(WhereClause::Clause {
+            connector: Connector::Or,
+            column: c.into(),
+            operator: o.into(),
+            value: Box::new(v),
+        });
+        self
     }
 }
 
+
 #[derive(Clone, Debug)]
-pub struct Statement<'q, DB: sqlx::Database> {
-    pub(crate) query: SQL,
-    pub(crate) arguments: DB::Arguments<'q> 
+pub struct Join {
+    pub table: String,
+    pub column: String,
+    pub operator: String,
+    pub column_table: String, 
+    pub join_type: JoinType
 }
 
-impl <'q, DB>Statement<'q, DB>
-where
-    DB: sqlx::Database
-{
-    pub(crate) fn new(table: &str) -> Self {
-        return Self {
-            query: SQL::new(table),
-            arguments: Default::default(),
+pub struct Having<DB: sqlx::Database> {
+    pub column: String,
+    pub operator: String,
+    pub value: Box<dyn Bindable<DB>>,
+    pub connector: Connector,
+}
+
+#[derive(Clone, Debug)]
+pub struct OrderValue {
+    pub column: String,
+    pub order: Order,
+}
+
+impl OrderValue {
+    pub fn new(column: impl Into<String>, order: Order) -> Self {
+        Self {
+            column: column.into(),
+            order: order
         }
     }
 }
 
-#[derive(Debug)]
-pub struct Transaction<'t, T: sqlx::Database> {
-    transaction: sqlx::Transaction<'t, T>
+pub struct Limit<DB: sqlx::Database> {
+    pub value: Box<dyn Bindable<DB>>,
 }
 
-impl <'t, T: sqlx::Database>Transaction<'t, T> {
-    pub(crate) fn new(transaction: sqlx::Transaction<'t, T>) -> Self {
-        return Self { transaction: transaction }
+impl <DB: sqlx::Database>Limit<DB> {
+    pub fn new(limit: i64) -> Self
+    where
+        for<'i> i64: sqlx::Encode<'i, DB> + sqlx::Type<DB>,
+    {
+        Self { value: Box::new(limit) }
     }
+}
 
-    pub async fn commit(self) -> Result<()> {
-        return self.transaction.commit().await.map_err(|e| e.into());
+pub struct Offset<DB: sqlx::Database> {
+    pub value: Box<dyn Bindable<DB>>,
+}
+
+impl <DB: sqlx::Database>Offset<DB> {
+    pub fn new(offset: i64) -> Self
+    where
+        for<'i> i64: sqlx::Encode<'i, DB> + sqlx::Type<DB>,
+    {
+        Self { value: Box::new(offset) }
     }
+}
 
-    pub async fn rollback(self) -> Result<()> {
-        return self.transaction.rollback().await.map_err(|e| e.into());
+#[derive(Default)]
+pub struct Statement<DB: sqlx::Database> {
+    pub table: String,
+    pub fields: Vec<String>,
+    pub join: Vec<Join>,
+    pub conditions: Vec<WhereClause<DB>>,
+    pub group_by: Option<String>,
+    pub having: Vec<Having<DB>>,
+    pub order_by: Vec<OrderValue>,
+    pub limit: Option<Limit<DB>>,
+    pub offset: Option<Offset<DB>>,
+    pub page: Option<i64>,
+    pub values: HashMap<String, Box<dyn Bindable<DB>>>
+}
+
+impl <DB: sqlx::Database>Statement<DB> {
+    pub fn new() -> Self {
+        Self {
+            table: String::new(),
+            fields: Vec::new(),
+            join: Vec::new(),
+            conditions: Vec::new(),
+            group_by: None,
+            having: Vec::new(),
+            order_by: Vec::new(),
+            limit: None,
+            offset: None,
+            page: None,
+            values: HashMap::new(),
+        }
     }
 }
 
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct Pagination<Entity> {
-    pub total: u64,
-    pub page: u64,
-    pub per_page: u64,
+    pub total: i64,
+    pub page: i64,
+    pub per_page: i64,
     pub items: Vec<Entity>
 }

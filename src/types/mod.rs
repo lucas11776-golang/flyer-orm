@@ -1,6 +1,8 @@
-use std::{any::Any, result::Result};
+use std::any::Any;
 
 use sqlx::{Arguments, error::BoxDynError};
+
+use crate::Result;
 
 pub trait Bindable<DB: sqlx::Database>: Send + 'static {
     fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError>;

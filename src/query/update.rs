@@ -1,0 +1,106 @@
+use crate::{
+    Executor,
+    Result,
+    query::{Statement, WhereGroup},
+    types::{Bindable, Connector, QueryResult, WhereClause}
+};
+
+pub struct Update<'e, E: Executor> {
+    executor: &'e E,
+    statement: Statement<E::DB>,
+}
+
+impl <'e, E: Executor>Update<'e, E> {
+    pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
+        Self {
+            executor: executor,
+            statement: {
+                let mut stmt = Statement::new();
+                stmt.table = table.into();
+                stmt
+            }
+        }
+    }
+
+    pub fn r#where<V>(
+        mut self,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        value: V,
+    ) -> Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self.statement.conditions.push(WhereClause::Clause {
+            connector: Connector::And,
+            column: column.into(),
+            operator: operator.into(),
+            value: Box::new(value),
+        });
+        self
+    }
+
+    #[inline]
+    pub fn and_where<V>(
+        self,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        value: V,
+    ) -> Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self.r#where(column, operator, value)
+    }
+
+    pub fn or_where<V>(
+        mut self,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        value: V,
+    ) -> Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self.statement.conditions.push(WhereClause::Clause {
+            connector: Connector::Or,
+            column: column.into(),
+            operator: operator.into(),
+            value: Box::new(value),
+        });
+        self
+    }
+
+    pub fn where_group<F>(mut self, callback: F) -> Self
+    where
+        F: FnOnce(&mut WhereGroup<E::DB>),
+    {
+        let mut group = WhereGroup::new();
+
+        callback(&mut group);
+
+        self.statement.conditions.push(WhereClause::Group {
+            connector: Connector::And,
+            conditions: group.conditions,
+        });
+        self
+    }
+
+    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self
+            .statement
+            .values
+            .insert(column.into(), Box::new(value));
+        self
+    }
+
+    pub async fn execute(&mut self) -> Result<impl QueryResult> {
+        self
+            .executor
+            .update(&self.statement)
+            .await
+    }
+}

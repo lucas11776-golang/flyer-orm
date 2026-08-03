@@ -123,7 +123,6 @@ impl Executor for SQLite {
     {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
-        // 1. Execute insert statement and retrieve generated rowid
         let res = sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
             .await?;

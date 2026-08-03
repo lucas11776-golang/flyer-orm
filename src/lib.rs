@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::error::Error;
 use std::sync::LazyLock;
 
 pub use database::mysql::MySQL;
@@ -14,6 +13,7 @@ pub use sqlx::MySqlPool;
 pub use sqlx::PgPool;
 pub use sqlx::SqlitePool;
 
+use crate::query::update::Update;
 use crate::{
     query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup, insert::Insert, raw::Raw},
     types::{Bindable, Connector, JoinType, Order, QueryResult, WhereClause},
@@ -24,7 +24,7 @@ pub mod query;
 pub mod types;
 pub mod executor;
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
+pub use anyhow::Result;
 
 pub trait Entity {}
 
@@ -94,19 +94,24 @@ impl<'q, E: Executor> Query<'q, E> {
         Insert::new(self.statement.table.clone(), self.executor)
     }
 
+    #[inline]
+    pub fn update(&mut self) -> Update<'_, E>{
+        Update::new(self.statement.table.clone(), self.executor)
+    }
+
     fn join_push(
         mut self,
         join_type: JoinType,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.statement.join.push(Join {
-            table: table.into().into_owned(),
-            column: column.into().into_owned(),
-            operator: operator.into().into_owned(),
-            column_table: column_table.into().into_owned(),
+            table: table.into(),
+            column: column.into(),
+            operator: operator.into(),
+            column_table: column_table.into(),
             join_type,
         });
         self
@@ -114,50 +119,50 @@ impl<'q, E: Executor> Query<'q, E> {
 
     pub fn join(
         self,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.join_push(JoinType::Join, table, column, operator, column_table)
     }
 
     pub fn join_right(
         self,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.join_push(JoinType::RightJoin, table, column, operator, column_table)
     }
 
     pub fn join_left(
         self,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.join_push(JoinType::LeftJoin, table, column, operator, column_table)
     }
 
     pub fn join_inner(
         self,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.join_push(JoinType::InnerJoin, table, column, operator, column_table)
     }
 
     pub fn join_full_outer(
         self,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.join_push(
             JoinType::FullOuterJoin,
@@ -170,18 +175,18 @@ impl<'q, E: Executor> Query<'q, E> {
 
     pub fn join_cross(
         self,
-        table: impl Into<Cow<'q, str>>,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
-        column_table: impl Into<Cow<'q, str>>,
+        table: impl Into<String>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
+        column_table: impl Into<String>,
     ) -> Self {
         self.join_push(JoinType::CrossJoin, table, column, operator, column_table)
     }
 
     pub fn r#where<V>(
         mut self,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
@@ -189,8 +194,8 @@ impl<'q, E: Executor> Query<'q, E> {
     {
         self.statement.conditions.push(WhereClause::Clause {
             connector: Connector::And,
-            column: column.into().into_owned(),
-            operator: operator.into().into_owned(),
+            column: column.into(),
+            operator: operator.into(),
             value: Box::new(value),
         });
         self
@@ -199,8 +204,8 @@ impl<'q, E: Executor> Query<'q, E> {
     #[inline]
     pub fn and_where<V>(
         self,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
@@ -211,8 +216,8 @@ impl<'q, E: Executor> Query<'q, E> {
 
     pub fn or_where<V>(
         mut self,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
@@ -220,8 +225,8 @@ impl<'q, E: Executor> Query<'q, E> {
     {
         self.statement.conditions.push(WhereClause::Clause {
             connector: Connector::Or,
-            column: column.into().into_owned(),
-            operator: operator.into().into_owned(),
+            column: column.into(),
+            operator: operator.into(),
             value: Box::new(value),
         });
         self
@@ -242,24 +247,24 @@ impl<'q, E: Executor> Query<'q, E> {
         self
     }
 
-    pub fn group_by(mut self, column: impl Into<Cow<'q, str>>) -> Self {
-        self.statement.group_by = Some(column.into().into_owned());
+    pub fn group_by(mut self, column: impl Into<String>) -> Self {
+        self.statement.group_by = Some(column.into());
         self
     }
 
     fn having_push<V>(
         mut self,
         connector: Connector,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
         V: Bindable<E::DB>,
     {
         self.statement.having.push(Having {
-            column: column.into().into_owned(),
-            operator: operator.into().into_owned(),
+            column: column.into(),
+            operator: operator.into(),
             value: Box::new(value),
             connector,
         });
@@ -268,8 +273,8 @@ impl<'q, E: Executor> Query<'q, E> {
 
     pub fn having<V>(
         self,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
@@ -281,8 +286,8 @@ impl<'q, E: Executor> Query<'q, E> {
     #[inline]
     pub fn and_having<V>(
         self,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
@@ -293,8 +298,8 @@ impl<'q, E: Executor> Query<'q, E> {
 
     pub fn or_having<V>(
         self,
-        column: impl Into<Cow<'q, str>>,
-        operator: impl Into<Cow<'q, str>>,
+        column: impl Into<String>,
+        operator: impl Into<String>,
         value: V,
     ) -> Self
     where
@@ -303,10 +308,10 @@ impl<'q, E: Executor> Query<'q, E> {
         self.having_push(Connector::Or, column, operator, value)
     }
 
-    pub fn order_by(mut self, column: impl Into<Cow<'q, str>>, order: Order) -> Self {
+    pub fn order_by(mut self, column: impl Into<String>, order: Order) -> Self {
         self.statement
             .order_by
-            .push(OrderValue::new(column.into().into_owned(), order));
+            .push(OrderValue::new(column.into(), order));
         self
     }
 
@@ -345,6 +350,7 @@ impl<'q, E: Executor> Query<'q, E> {
             .all(&self.statement)
             .await
     }
+    
 
     pub async fn paginate<O>(&mut self, page: i64, limit: i64) -> Result<Pagination<O>>
     where

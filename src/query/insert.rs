@@ -9,11 +9,15 @@ impl <'e, E: Executor>Insert<'e, E> {
     pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
         Self {
             executor: executor,
-            statement: Statement::new(table)
+            statement: {
+                let mut stmt = Statement::new();
+                stmt.table = table.into();
+                stmt
+            }
         }
     }
 
-    pub fn bind<V, O>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
     where
         V: Bindable<E::DB>,
     {

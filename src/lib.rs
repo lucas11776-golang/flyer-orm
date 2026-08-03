@@ -1,5 +1,8 @@
+use std::any::Any;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::error::Error;
+use std::sync::LazyLock;
 
 pub use database::mysql::MySQL;
 pub use database::postgres::Postgres;
@@ -25,6 +28,38 @@ pub type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 pub trait Entity {}
 
+static mut CONTAINER: LazyLock<HashMap<String, Box<dyn Any>>> = LazyLock::new(|| HashMap::new());
+
+pub struct Connection;
+
+impl Connection {
+    #[allow(static_mut_refs)]
+    pub fn add<E: Executor + 'static>(connection: impl Into<String>, executor: E) {
+        unsafe {
+            CONTAINER.insert(connection.into(), Box::new(executor));
+        }
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn get<'a, E: Executor + 'static>(connection: impl Into<String>) -> &'a E {
+        unsafe {
+            CONTAINER
+                .get(&connection.into())
+                .unwrap()
+                .downcast_ref::<E>()
+                .unwrap()
+        }
+    }
+
+    pub fn query<'a, E: Executor + 'static>(connection: impl Into<String>) -> Query<'a, E> {
+        Query::new(Self::get(connection))
+    }
+
+    pub fn raw<'a, E: Executor + 'static>(connection: impl Into<String>, sql: impl Into<String>) -> Raw<'a, E> {
+        Raw::new(Self::get(connection), sql)
+    }
+}
+
 pub struct Query<'q, E: Executor> {
     executor: &'q E,
     statement: Statement<E::DB>,
@@ -32,11 +67,16 @@ pub struct Query<'q, E: Executor> {
 
 impl<'q, E: Executor> Query<'q, E> {
     #[inline]
-    pub fn new(executor: &'q E, table: impl Into<Cow<'q, str>>) -> Self {
+    pub fn new(executor: &'q E, ) -> Self {
         Self {
             executor,
-            statement: Statement::new(table.into().into_owned()),
+            statement: Statement::new(),
         }
+    }
+
+    pub fn table(mut self, table: impl Into<String>) -> Self {
+        self.statement.table = table.into();
+        self
     }
 
     #[inline]
@@ -296,7 +336,7 @@ impl<'q, E: Executor> Query<'q, E> {
             .await
     }
 
-    pub async fn get<O>(&self) -> Result<Vec<O>>
+    pub async fn all<O>(&self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
     {

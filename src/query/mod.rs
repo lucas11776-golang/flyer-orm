@@ -115,6 +115,7 @@ impl <DB: sqlx::Database>Offset<DB> {
     }
 }
 
+#[derive(Default)]
 pub struct Statement<DB: sqlx::Database> {
     pub table: String,
     pub fields: Vec<String>,
@@ -130,9 +131,9 @@ pub struct Statement<DB: sqlx::Database> {
 }
 
 impl <DB: sqlx::Database>Statement<DB> {
-    pub fn new(table: impl Into<String>) -> Self {
+    pub fn new() -> Self {
         Self {
-            table: table.into(),
+            table: String::new(),
             fields: Vec::new(),
             join: Vec::new(),
             conditions: Vec::new(),

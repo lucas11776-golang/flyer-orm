@@ -17,7 +17,7 @@ impl <'e, E: Executor>Raw<'e, E> {
         };
     }
 
-    pub fn bind<V, O>(&mut self, value: V) -> &mut Self
+    pub fn bind<V>(mut self, value: V) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -27,17 +27,14 @@ impl <'e, E: Executor>Raw<'e, E> {
         self
     }
 
-    pub async fn execute<O>(&mut self) -> Result<impl QueryResult>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
-    {
+    pub async fn execute(mut self) -> Result<impl QueryResult> {
         self
             .executor
             .execute(self.sql.clone(), mem::take(&mut self.arguments))
             .await
     }
 
-    pub async fn first<O>(&mut self) -> Result<O>
+    pub async fn first<O>(mut self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
@@ -47,7 +44,7 @@ impl <'e, E: Executor>Raw<'e, E> {
             .await
     }
 
-    pub async fn all<O>(&mut self) -> Result<Vec<O>>
+    pub async fn all<O>(mut self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {

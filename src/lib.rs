@@ -1,3 +1,5 @@
+// extern crate derive;
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -5,7 +7,7 @@ use std::sync::LazyLock;
 pub use database::mysql::MySQL;
 pub use database::postgres::Postgres;
 pub use database::sqlite::SQLite;
-pub use derive::Entity;
+// pub use flyer_orm_derive::Entity;
 pub use executor::Executor;
 
 pub use sqlx::MySqlPool;
@@ -26,7 +28,11 @@ pub mod executor;
 
 pub use anyhow::Result;
 
+
 pub trait Entity {}
+
+pub use flyer_orm_derive::Entity;
+
 
 static mut CONTAINER: LazyLock<HashMap<String, Box<dyn Any>>> = LazyLock::new(|| HashMap::new());
 

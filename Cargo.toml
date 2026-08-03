@@ -14,7 +14,7 @@ build = "build.rs"
 git2 = "0.20.4"
 
 [dependencies]
-derive = { path = "./derive" }
+derive = { version = "0.0.0", path = "./derive" }
 
 anyhow = "1.0.102"
 serde = "1.0.228"

@@ -1,4 +1,4 @@
-use anyhow::Result;
+use flyer_orm::Result;
 use flyer_orm::types::QueryResult;
 use flyer_orm::{Connection, Executor, Query, SQLite, query::raw::Raw};
 use flyer_orm::Entity;
@@ -53,13 +53,18 @@ async fn main() -> Result<()> {
     }
 
     let products_range_r10_to_r30 = Database::query("products")
-        .r#where("price", ">=", 20)
-        .and_where("price", "<=", 40)
+        .where_group(|group| {
+            group
+                .r#where("price", ">=", 20)
+                .and_where("price", "<=", 40);
+        })
         .all::<Product>()
         .await
         .unwrap();
 
-    println!("\r\n\r\nUser: {:?}", products_range_r10_to_r30);
+    for product in products_range_r10_to_r30 {
+        println!("Product: {:?}", product);
+    }
 
     // Raw Query
     let result = Database::raw("INSERT INTO products (name, price) VALUES ($1, $2)")
@@ -69,7 +74,7 @@ async fn main() -> Result<()> {
         .await
         .unwrap();
 
-    println!("\r\n\r\nQUERY RESULT -> {:?} -> AFFECTED -> {:?}", result.last_inserted(), result.rows_affected());
+    println!("\r\nQUERY RESULT -> {:?} -> AFFECTED -> {:?}\r\n\r\n", result.last_inserted(), result.rows_affected());
 
     return Ok(());
 }

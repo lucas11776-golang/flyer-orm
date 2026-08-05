@@ -1,4 +1,4 @@
-use crate::{Entity, Executor, Result, query::Statement, types::{Bindable, QueryResult}};
+use crate::{Entity, Executor, Result, query::Statement, types::Bindable};
 
 pub struct Insert<'e, E: Executor> {
     executor: &'e E,

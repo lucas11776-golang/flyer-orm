@@ -1,5 +1,4 @@
 use flyer_orm::Result;
-use flyer_orm::types::QueryResult;
 use flyer_orm::{Connection, Executor, Query, SQLite, query::raw::Raw};
 use flyer_orm::Entity;
 use serde::Serialize;

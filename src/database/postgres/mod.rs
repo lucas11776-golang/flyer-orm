@@ -59,7 +59,7 @@ impl Executor for Postgres {
         Self { pool }
     }
 
-    fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String {
+    fn to_sql<'q>(&'q self, statement: &Statement<Self::DB>) -> String {
         QueryBuilder::new(true).to_sql(statement)
     }
 
@@ -67,10 +67,10 @@ impl Executor for Postgres {
         &self.pool
     }
 
-    async fn execute<'c>(
-        &self,
+    async fn execute<'q>(
+        &'q self,
         sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'q>,
     ) -> Result<impl crate::QueryResult> {
         let res = sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
@@ -79,10 +79,10 @@ impl Executor for Postgres {
         Ok(PostgresQueryResult::new(res.rows_affected(), 0))
     }
 
-    async fn fetch_one<'c, O>(
-        &self,
+    async fn fetch_one<'a, O>(
+        &'a self,
         sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
     ) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
@@ -93,10 +93,10 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn fetch_all<'c, O>(
-        &self,
+    async fn fetch_all<'a, O>(
+        &'a self,
         sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
     ) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
@@ -107,7 +107,7 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
         self
@@ -115,7 +115,7 @@ impl Executor for Postgres {
             .await
     }
 
-    async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn insert_as<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -128,7 +128,7 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
         self
@@ -136,7 +136,7 @@ impl Executor for Postgres {
             .await
     }
 
-    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn delete<'a>(&self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
         self
@@ -144,7 +144,7 @@ impl Executor for Postgres {
             .await
     }
 
-    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<i64> {
+    async fn count<'a>(&self, statement: &'a Statement<Self::DB>) -> Result<i64> {
         let (sql, arguments) = QueryBuilder::new(false)
             .select(&["COUNT(*) AS total".into()])
             .from(&statement.table)
@@ -161,7 +161,7 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    async fn all<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -173,7 +173,7 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn first<O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn first<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -185,7 +185,7 @@ impl Executor for Postgres {
             .map_err(Into::into)
     }
 
-    async fn paginate<O>(&self, statement: &Statement<Self::DB>) -> Result<Pagination<O>>
+    async fn paginate<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {

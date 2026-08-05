@@ -1,13 +1,11 @@
-// extern crate derive;
-
 use std::any::Any;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::sync::LazyLock;
 
 pub use database::mysql::MySQL;
 pub use database::postgres::Postgres;
 pub use database::sqlite::SQLite;
-// pub use flyer_orm_derive::Entity;
 pub use executor::Executor;
 
 pub use sqlx::MySqlPool;
@@ -27,12 +25,13 @@ pub mod types;
 pub mod executor;
 
 pub use anyhow::Result;
+pub use sqlx;
 
 pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
 
-static mut CONTAINER: LazyLock<HashMap<String, Box<dyn Any>>> = LazyLock::new(|| HashMap::new());
+static mut CONNECTIONS: LazyLock<HashMap<String, Arc<Box<dyn Any>>>> = LazyLock::new(|| HashMap::new());
 
 pub struct Connection;
 
@@ -40,14 +39,14 @@ impl Connection {
     #[allow(static_mut_refs)]
     pub fn add<E: Executor + 'static>(connection: impl Into<String>, executor: E) {
         unsafe {
-            CONTAINER.insert(connection.into(), Box::new(executor));
+            CONNECTIONS.insert(connection.into(), Arc::new(Box::new(executor)));
         }
     }
 
     #[allow(static_mut_refs)]
     pub fn get<'a, E: Executor + 'static>(connection: impl Into<String>) -> &'a E {
         unsafe {
-            CONTAINER
+            CONNECTIONS
                 .get(&connection.into())
                 .unwrap()
                 .downcast_ref::<E>()
@@ -144,17 +143,17 @@ impl<'q, E: Executor> Query<'q, E> {
     }
 
     #[inline]
-    pub fn insert<'a>(&'a mut self) -> Insert<'a, E>{
+    pub fn insert(&'q mut self) -> Insert<'q, E>{
         Insert::new(self.statement.table.clone(), self.executor)
     }
 
     #[inline]
-    pub fn update<'a>(&'a mut self) -> Update<'a, E>{
+    pub fn update(&mut self) -> Update<'q, E>{
         Update::new(self.statement.table.clone(), self.executor)
     }
 
     #[inline]
-    pub fn delete(&mut self) -> Delete<'_, E>{
+    pub fn delete(&mut self) -> Delete<'q, E>{
         Delete::new(self.statement.table.clone(), self.executor)
     }
 

@@ -51,7 +51,7 @@ impl <'e, E: Executor>Raw<'e, E> {
     {
         self
             .executor
-            .fetch_all(self.sql.clone(), mem::take(&mut self.arguments))
+            .fetch_all::<O>(self.sql.clone(), mem::take(&mut self.arguments))
             .await
     }
 }

@@ -17,7 +17,7 @@ impl <'e, E: Executor>Insert<'e, E> {
         }
     }
 
-    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    pub fn bind<V>(mut self, column: impl Into<String>,  value: V) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -28,14 +28,15 @@ impl <'e, E: Executor>Insert<'e, E> {
         self
     }
 
-    pub async fn execute(&mut self) -> Result<impl QueryResult> {
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
             .insert(&self.statement)
             .await
+            .map(|_| {})
     }
 
-    pub async fn execute_as<O>(&mut self) -> Result<O>
+    pub async fn execute_as<O>(self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {

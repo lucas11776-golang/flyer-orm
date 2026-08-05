@@ -10,6 +10,7 @@ use crate::{
 };
 
 mod builder;
+pub mod decoders;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PostgresQueryResult {

@@ -2,7 +2,7 @@ use crate::{
     Executor,
     Result,
     query::{Statement, WhereGroup},
-    types::{Bindable, Connector, QueryResult, WhereClause}
+    types::{Bindable, Connector, WhereClause}
 };
 
 pub struct Update<'e, E: Executor> {
@@ -86,7 +86,7 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    pub fn bind<V>(mut self, column: impl Into<String>,  value: V) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -97,10 +97,11 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub async fn execute(&mut self) -> Result<impl QueryResult> {
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
             .update(&self.statement)
             .await
+            .map(|_| {})
     }
 }

@@ -67,14 +67,22 @@ async fn main() -> Result<()> {
     }
 
     // Raw Query
-    let result = Database::raw("INSERT INTO products (name, price) VALUES ($1, $2)")
-        .bind("Butter".to_owned())
+    let product_name = String::from("Butter");
+
+    Database::raw("INSERT INTO products (name, price) VALUES ($1, $2)")
+        .bind(product_name.clone())
         .bind(150)
         .execute()
         .await
         .unwrap();
 
-    println!("\r\nQUERY RESULT -> {:?} -> AFFECTED -> {:?}\r\n\r\n", result.last_inserted(), result.rows_affected());
+    let product = Database::query("products")
+        .r#where("name", "=", product_name)
+        .first::<Product>()
+        .await
+        .unwrap();
+
+    println!("\r\nINSERTED PRODUCT {:?}", product);
 
     return Ok(());
 }

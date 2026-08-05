@@ -4,7 +4,7 @@ use sqlx::{Arguments, error::BoxDynError};
 
 use crate::Result;
 
-pub trait Bindable<DB: sqlx::Database>: Send + 'static {
+pub trait Bindable<DB: sqlx::Database>: Send + Sync + 'static {
     fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError>;
     fn as_any(&self) -> &dyn Any;
 }
@@ -12,7 +12,7 @@ pub trait Bindable<DB: sqlx::Database>: Send + 'static {
 impl<DB, T> Bindable<DB> for T
 where
     DB: sqlx::Database,
-    T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Clone + Send + 'static,
+    T: for<'q> sqlx::Encode<'q, DB> + sqlx::Type<DB> + Clone + Send + Sync + 'static,
 {
     #[inline]
     fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError> {

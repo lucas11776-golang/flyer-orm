@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[allow(async_fn_in_trait)]
-pub trait Executor {
+pub trait Executor: Send + Sync {
     type DB: SqlxDatabase;
 
     async fn new(url: impl Into<String>) -> Self;

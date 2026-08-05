@@ -86,10 +86,11 @@ impl <'e, E: Executor>Delete<'e, E> {
         self
     }
 
-    pub async fn execute(&mut self) -> Result<impl QueryResult> {
+    pub async fn execute(mut self) -> Result<()> {
         self
             .executor
             .delete(&self.statement)
             .await
+            .map(|_| {})
     }
 }

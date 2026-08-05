@@ -28,11 +28,9 @@ pub mod executor;
 
 pub use anyhow::Result;
 
-
 pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
-
 
 static mut CONTAINER: LazyLock<HashMap<String, Box<dyn Any>>> = LazyLock::new(|| HashMap::new());
 
@@ -59,6 +57,10 @@ impl Connection {
 
     pub fn query<'a, E: Executor + 'static>(connection: impl Into<String>) -> Query<'a, E> {
         Query::new(Self::get(connection))
+    }
+
+    pub fn db<'a, E: Executor + 'static>(connection: impl Into<String>) -> &'a E  {
+        Self::get::<E>(connection)
     }
 
     pub fn raw<'a, E: Executor + 'static>(connection: impl Into<String>, sql: impl Into<String>) -> Raw<'a, E> {
@@ -107,11 +109,6 @@ impl<'q, E: Executor> Query<'q, E> {
         }
     }
 
-    pub fn table(mut self, table: impl Into<String>) -> Self {
-        self.statement.table = table.into();
-        self
-    }
-
     pub async fn transaction(&self) -> Result<Transaction<'q, E>> {
         let transaction = self
             .executor
@@ -133,13 +130,26 @@ impl<'q, E: Executor> Query<'q, E> {
         Raw::new(self.executor, sql)
     }
 
+    pub fn table(mut self, table: impl Into<String>) -> Self {
+        self.statement.table = table.into();
+        self
+    }
+
+    pub fn select(mut self, columns: Vec<impl Into<String>>) -> Self {
+        // TODO: use iter.map
+        for c in columns {
+            self.statement.fields.push(c.into());
+        }
+        self
+    }
+
     #[inline]
-    pub fn insert(&mut self) -> Insert<'_, E>{
+    pub fn insert<'a>(&'a mut self) -> Insert<'a, E>{
         Insert::new(self.statement.table.clone(), self.executor)
     }
 
     #[inline]
-    pub fn update(&mut self) -> Update<'_, E>{
+    pub fn update<'a>(&'a mut self) -> Update<'a, E>{
         Update::new(self.statement.table.clone(), self.executor)
     }
 
@@ -405,6 +415,13 @@ impl<'q, E: Executor> Query<'q, E> {
             .executor
             .count(&self.statement)
             .await
+    }
+
+    pub async fn exists(&self) -> Result<bool> {
+        self
+            .count()
+            .await
+            .map(|c| c > 0)
     }
     
     pub async fn paginate<O>(&mut self, page: i64, limit: i64) -> Result<Pagination<O>>

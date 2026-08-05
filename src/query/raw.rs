@@ -1,6 +1,6 @@
 use std::mem;
 
-use crate::{Entity, Executor, Result, types::{Bindable, QueryResult}};
+use crate::{Entity, Executor, Result, types::Bindable};
 
 pub struct Raw<'e, E: Executor> {
     sql: String,
@@ -27,11 +27,12 @@ impl <'e, E: Executor>Raw<'e, E> {
         self
     }
 
-    pub async fn execute(mut self) -> Result<impl QueryResult> {
+    pub async fn execute(mut self) -> Result<()> {
         self
             .executor
             .execute(self.sql.clone(), mem::take(&mut self.arguments))
             .await
+            .map(|_| {})
     }
 
     pub async fn first<O>(mut self) -> Result<O>

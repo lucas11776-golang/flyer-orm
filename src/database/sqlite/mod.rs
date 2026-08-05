@@ -67,7 +67,7 @@ impl Executor for SQLite {
     }
 
     async fn execute<'c>(
-        &self,
+        &'c self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
     ) -> Result<impl crate::QueryResult> {
@@ -82,7 +82,7 @@ impl Executor for SQLite {
     }
 
     async fn fetch_one<'c, O>(
-        &self,
+        &'c self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
     ) -> Result<O>
@@ -96,7 +96,7 @@ impl Executor for SQLite {
     }
 
     async fn fetch_all<'c, O>(
-        &self,
+        &'c self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
     ) -> Result<Vec<O>>
@@ -109,7 +109,7 @@ impl Executor for SQLite {
             .map_err(Into::into)
     }
 
-    async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn insert<'q>(&'q self, statement: &'q Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
         self
@@ -117,7 +117,7 @@ impl Executor for SQLite {
             .await
     }
 
-    async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn insert_as<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -138,7 +138,7 @@ impl Executor for SQLite {
             .map_err(Into::into)
     }
 
-    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn update<'q>(&'q self, statement: &'q Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
         self
@@ -146,7 +146,7 @@ impl Executor for SQLite {
             .await
     }
 
-    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn delete<'q>(&'q self, statement: &'q Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
         self
@@ -154,7 +154,7 @@ impl Executor for SQLite {
             .await
     }
 
-    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<i64> {
+    async fn count<'q>(&'q self, statement: &'q Statement<Self::DB>) -> Result<i64> {
         let (sql, arguments) = QueryBuilder::new(false)
             .select(&["COUNT(*) AS total".into()])
             .from(&statement.table)
@@ -171,7 +171,7 @@ impl Executor for SQLite {
             .map_err(Into::into)
     }
 
-    async fn first<O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn first<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -180,7 +180,7 @@ impl Executor for SQLite {
         self.fetch_one(sql, arguments).await
     }
 
-    async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    async fn all<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -189,7 +189,7 @@ impl Executor for SQLite {
         self.fetch_all(sql, arguments).await
     }
 
-    async fn paginate<O>(&self, statement: &Statement<Self::DB>) -> Result<Pagination<O>>
+    async fn paginate<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {

@@ -16,41 +16,41 @@ pub trait Executor: Send + Sync {
 
     fn from(pool: Pool<Self::DB>) -> Self;
 
-    fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String;
+    fn to_sql<'a>(&self, statement: &'a Statement<Self::DB>) -> String;
 
     fn db(&self) -> &Pool<Self::DB>;
 
-    async fn execute<'c>(&self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'c>) -> Result<impl QueryResult>;
+    async fn execute<'a>(&'a self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'a>) -> Result<impl QueryResult>;
 
-    async fn fetch_one<'c, O>(&self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'c>) -> Result<O>
+    async fn fetch_one<'a, O>(&'a self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'a>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn fetch_all<'c, O>(&self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'c>) -> Result<Vec<O>>
+    async fn fetch_all<'a, O>(&'a self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'a>) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult>;
+    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
 
-    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult>;
+    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
 
-    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<i64>;
+    async fn count<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<i64>;
 
-    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult>;
+    async fn delete<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
 
-    async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn insert_as<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    async fn all<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn first<O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn first<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 
-    async fn paginate<O>(&self, statement: &Statement<Self::DB>) -> Result<Pagination<O>>
+    async fn paginate<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as SqlxDatabase>::Row> + Send + Unpin;
 }

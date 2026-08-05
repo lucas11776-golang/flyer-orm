@@ -2,16 +2,16 @@ use crate::{
     Executor,
     Result,
     query::{Statement, WhereGroup},
-    types::{Bindable, Connector, QueryResult, WhereClause}
+    types::{Bindable, Connector, WhereClause}
 };
 
-pub struct Delete<'e, E: Executor> {
-    executor: &'e E,
+pub struct Delete<'a, E: Executor> {
+    executor: &'a E,
     statement: Statement<E::DB>,
 }
 
-impl <'e, E: Executor>Delete<'e, E> {
-    pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
+impl <'a, E: Executor>Delete<'a, E> {
+    pub fn new(table: impl Into<String>, executor: &'a E) -> Self {
         Self {
             executor: executor,
             statement: {
@@ -86,7 +86,7 @@ impl <'e, E: Executor>Delete<'e, E> {
         self
     }
 
-    pub async fn execute(mut self) -> Result<()> {
+    pub async fn execute(&'a mut self) -> Result<()> {
         self
             .executor
             .delete(&self.statement)

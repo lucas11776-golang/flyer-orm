@@ -38,47 +38,47 @@ async fn main() -> Result<()> {
         .await
         .unwrap();
 
-    let mut query = Database::query("subscriptions");
+    // let mut query = Database::query("subscriptions");
 
-    /* Commit Transaction */
-    let transaction = query
-        .transaction()
-        .await
-        .unwrap();
+    // /* Commit Transaction */
+    // let transaction = query
+    //     .transaction()
+    //     .await
+    //     .unwrap();
 
-    query
-        .insert()
-        .bind("name", String::from("Jeo"))
-        .bind("email", String::from("jeo@deo.com"))
-        .execute()
-        .await
-        .unwrap();
+    // query
+    //     .insert()
+    //     .bind("name", String::from("Jeo"))
+    //     .bind("email", String::from("jeo@deo.com"))
+    //     .execute()
+    //     .await
+    //     .unwrap();
 
-    transaction
-        .commit()
-        .await
-        .unwrap();
+    // transaction
+    //     .commit()
+    //     .await
+    //     .unwrap();
 
-    /* Rollback Transaction */
-    let transaction = query
-        .transaction()
-        .await
-        .unwrap();
+    // /* Rollback Transaction */
+    // let transaction = query
+    //     .transaction()
+    //     .await
+    //     .unwrap();
 
-    query
-        .insert()
-        .bind("name", String::from("Jane"))
-        .bind("email", String::from("jane@deo.com"))
-        .execute()
-        .await
-        .unwrap();
+    // query
+    //     .insert()
+    //     .bind("name", String::from("Jane"))
+    //     .bind("email", String::from("jane@deo.com"))
+    //     .execute()
+    //     .await
+    //     .unwrap();
 
-    transaction
-        .rollback()
-        .await
-        .unwrap();
+    // transaction
+    //     .rollback()
+    //     .await
+    //     .unwrap();
 
-    println!("Users inserted: {}", query.count().await.unwrap());
+    // println!("Users inserted: {}", query.count().await.unwrap());
     
     return Ok(());
 }

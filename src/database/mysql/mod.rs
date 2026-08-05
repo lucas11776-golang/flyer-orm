@@ -58,7 +58,7 @@ impl Executor for MySQL {
         Self { pool }
     }
 
-    fn to_sql<'q>(&self, statement: &Statement<Self::DB>) -> String {
+    fn to_sql<'a>(&'a self, statement: &'a Statement<Self::DB>) -> String {
         QueryBuilder::new(true).to_sql(statement)
     }
 
@@ -66,10 +66,10 @@ impl Executor for MySQL {
         &self.pool
     }
 
-    async fn execute<'c>(
-        &self,
+    async fn execute<'a>(
+        &'a self,
         sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
     ) -> Result<impl crate::QueryResult> {
         let result = sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
@@ -81,10 +81,10 @@ impl Executor for MySQL {
         ))
     }
 
-    async fn fetch_one<'c, O>(
-        &self,
+    async fn fetch_one<'a, O>(
+        &'a self,
         sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
     ) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
@@ -95,10 +95,10 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn fetch_all<'c, O>(
-        &self,
+    async fn fetch_all<'a, O>(
+        &'a self,
         sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
     ) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
@@ -109,7 +109,7 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn insert<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
         self
@@ -117,7 +117,7 @@ impl Executor for MySQL {
             .await
     }
 
-    async fn insert_as<'q, O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn insert_as<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -138,7 +138,7 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn update<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
         self
@@ -146,7 +146,7 @@ impl Executor for MySQL {
             .await
     }
 
-    async fn delete<'q>(&self, statement: &Statement<Self::DB>) -> Result<impl QueryResult> {
+    async fn delete<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
         self
@@ -154,7 +154,7 @@ impl Executor for MySQL {
             .await
     }
 
-    async fn count<'q>(&self, statement: &Statement<Self::DB>) -> Result<i64> {
+    async fn count<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<i64> {
         let (sql, arguments) = QueryBuilder::new(false)
             .select(&["COUNT(*) AS total".into()])
             .from(&statement.table)
@@ -171,7 +171,7 @@ impl Executor for MySQL {
             .map_err(Into::into)
     }
 
-    async fn first<O>(&self, statement: &Statement<Self::DB>) -> Result<O>
+    async fn first<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -182,7 +182,7 @@ impl Executor for MySQL {
             .await
     }
 
-    async fn all<O>(&self, statement: &Statement<Self::DB>) -> Result<Vec<O>>
+    async fn all<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
@@ -193,7 +193,7 @@ impl Executor for MySQL {
             .await
     }
 
-    async fn paginate<O>(&self, statement: &Statement<Self::DB>) -> Result<Pagination<O>>
+    async fn paginate<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {

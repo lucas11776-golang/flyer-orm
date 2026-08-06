@@ -423,7 +423,7 @@ impl<'q, E: Executor> Query<'q, E> {
             .map(|c| c > 0)
     }
     
-    pub async fn paginate<O>(&mut self, page: i64, limit: i64) -> Result<Pagination<O>>
+    pub async fn paginate<O>(&mut self, limit: i64, page: i64) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
         for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,

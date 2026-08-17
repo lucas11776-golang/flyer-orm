@@ -86,7 +86,7 @@ impl <'a, E: Executor>Delete<'a, E> {
         self
     }
 
-    pub async fn execute(&'a mut self) -> Result<()> {
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
             .delete(&self.statement)

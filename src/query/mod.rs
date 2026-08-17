@@ -10,6 +10,7 @@ use crate::{
 pub use crate::Entity;
 
 pub mod insert;
+pub mod query;
 pub mod update;
 pub mod delete;
 pub mod raw;
@@ -133,9 +134,9 @@ pub struct Statement<DB: sqlx::Database> {
 }
 
 impl <DB: sqlx::Database>Statement<DB> {
-    pub fn new() -> Self {
+    pub fn new(table: impl Into<String>) -> Self {
         Self {
-            table: String::new(),
+            table: table.into(),
             fields: Vec::new(),
             join: Vec::new(),
             conditions: Vec::new(),

@@ -11,14 +11,10 @@ pub struct Delete<'a, E: Executor> {
 }
 
 impl <'a, E: Executor>Delete<'a, E> {
-    pub fn new(table: impl Into<String>, executor: &'a E) -> Self {
+    pub fn new(executor: &'a E, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
-            statement: {
-                let mut stmt = Statement::new();
-                stmt.table = table.into();
-                stmt
-            }
+            statement: Statement::new(table),
         }
     }
 

@@ -11,14 +11,10 @@ pub struct Update<'e, E: Executor> {
 }
 
 impl <'e, E: Executor>Update<'e, E> {
-    pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
+    pub fn new(executor: &'e E, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
-            statement: {
-                let mut stmt = Statement::new();
-                stmt.table = table.into();
-                stmt
-            }
+            statement: Statement::new(table),
         }
     }
 

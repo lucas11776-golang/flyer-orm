@@ -62,7 +62,7 @@ impl Executor for MySQL {
         QueryBuilder::new(true).to_sql(statement)
     }
 
-    fn db(&self) -> &sqlx::Pool<Self::DB> {
+    fn pool(&self) -> &sqlx::Pool<Self::DB> {
         &self.pool
     }
 

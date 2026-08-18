@@ -10,15 +10,13 @@ pub use executor::Executor;
 
 pub use sqlx::MySqlPool;
 pub use sqlx::PgPool;
+use sqlx::Pool;
+use sqlx::QueryBuilder;
 pub use sqlx::SqlitePool;
 
-use crate::query::delete::Delete;
-use crate::query::query::Query;
-use crate::query::update::Update;
-use crate::{
-    query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, insert::Insert, raw::Raw},
-    types::{Bindable, QueryResult, WhereClause},
-};
+use crate::query::{delete::Delete, insert::Insert, raw::Raw, update::Update, query::Query};
+use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
+use crate::types::{Bindable, QueryResult, WhereClause};
 
 pub mod database;
 pub mod query;
@@ -66,6 +64,12 @@ impl <'q, E: Executor>Database<'q, E> {
         }
     }
 
+    pub fn pool(&self) -> &'q Pool<E::DB> {
+        self
+            .executor
+            .pool()
+    }
+
     pub fn raw(&self, sql: impl Into<String>) -> Raw<'q, E> {
         Raw::new(self.executor, sql)
     }
@@ -84,5 +88,9 @@ impl <'q, E: Executor>Database<'q, E> {
 
     pub fn delete(&self, table: impl Into<String>) -> Delete<'q, E> {
         Delete::new(self.executor, table)
+    }
+
+    pub fn query_builder(&self) -> QueryBuilder<'q, E::DB> {
+        QueryBuilder::default()
     }
 }

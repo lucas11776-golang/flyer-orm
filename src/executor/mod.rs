@@ -18,7 +18,7 @@ pub trait Executor: Send + Sync {
 
     fn to_sql<'a>(&self, statement: &'a Statement<Self::DB>) -> String;
 
-    fn db(&self) -> &Pool<Self::DB>;
+    fn pool(&self) -> &Pool<Self::DB>;
 
     async fn execute<'a>(&'a self, sql: String, arguments: <Self::DB as SqlxDatabase>::Arguments<'a>) -> Result<impl QueryResult>;
 

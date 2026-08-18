@@ -9,11 +9,12 @@ use crate::{
 
 pub use crate::Entity;
 
+pub mod delete;
 pub mod insert;
 pub mod query;
-pub mod update;
-pub mod delete;
 pub mod raw;
+pub mod raw_read;
+pub mod update;
 
 pub struct WhereGroup<DB: sqlx::Database> {
     pub conditions: Vec<WhereClause<DB>>,

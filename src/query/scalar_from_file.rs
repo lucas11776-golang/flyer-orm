@@ -35,7 +35,6 @@ where
     }
 }
 
-// TODO: move scaler function to Executor.
 impl <'q, E: Executor + 'static>ScalarFromFile<'q, E>
 where
     E::DB: Database,
@@ -54,10 +53,10 @@ where
         O: Send + Unpin,
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
     {
-        sqlx::query_scalar_with::<E::DB, O, _>(self.sql().await?, self.arguments)
-            .fetch_one(self.executor.pool())
+        self
+            .executor
+            .fetch_one_scalar(self.sql().await?, self.arguments)
             .await
-            .map_err(Into::into)
     }
 
     pub async fn first_optional<O>(self) -> Result<Option<O>>
@@ -66,10 +65,10 @@ where
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
         (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
     {
-        sqlx::query_scalar_with::<E::DB, O, _>(self.sql().await?, self.arguments)
-            .fetch_optional(self.executor.pool())
+        self
+            .executor
+            .fetch_one_scalar(self.sql().await?, self.arguments)
             .await
-            .map_err(Into::into)
     }
 
     pub async fn all<O>(self) -> Result<Vec<O>>
@@ -78,9 +77,9 @@ where
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
         (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
     {
-        sqlx::query_scalar_with::<E::DB, O, _>(self.sql().await?, self.arguments)
-            .fetch_all(self.executor.pool())
+        self
+            .executor
+            .fetch_all_scalar(self.sql().await?, self.arguments)
             .await
-            .map_err(Into::into)
     }
 }

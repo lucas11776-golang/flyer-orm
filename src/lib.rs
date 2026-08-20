@@ -15,8 +15,6 @@ pub use sqlx::PgPool;
 use sqlx::Pool;
 use sqlx::QueryBuilder;
 pub use sqlx::SqlitePool;
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
 
 use crate::query::raw_from_file::RawFromFile;
 use crate::query::scalar::Scalar;
@@ -67,6 +65,7 @@ impl Connections {
     }
 
     pub fn remove(&mut self, connection: impl Into<String>) {
+        self.connections.remove(&connection.into());
     }
 
     pub fn cache(&mut self, path: String) -> Result<&str> {

@@ -1,4 +1,4 @@
-use sqlx::{ColumnIndex, Database, FromRow, IntoArguments, Pool};
+use sqlx::{ColumnIndex, Database, IntoArguments};
 use crate::{Executor, Result, types::Bindable};
 
 pub struct ScalarFromFile<'q, E: Executor> 
@@ -58,25 +58,23 @@ where
         <E::DB as sqlx::Database>::Arguments<'q>: IntoArguments<'q, E::DB>,
         for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        // self
-        //     .executor
-        //     .fetch_one_scalar(self.sql().await?, self.arguments)
-        //     .await
-
-        todo!()
+        self
+            .executor
+            .fetch_one_scalar(self.sql, self.arguments)
+            .await
     }
 
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Send + Unpin,
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
-        (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
+        usize: ColumnIndex<<E::DB as Database>::Row>,
+        <E::DB as sqlx::Database>::Arguments<'q>: IntoArguments<'q, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        // self
-        //     .executor
-        //     .fetch_all_scalar(self.sql().await?, self.arguments)
-        //     .await
-
-        todo!()
+        self
+            .executor
+            .fetch_all_scalar(self.sql, self.arguments)
+            .await
     }
 }

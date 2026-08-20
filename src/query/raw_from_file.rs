@@ -12,7 +12,6 @@ impl <'e, E: Executor>RawFromFile<'e, E> {
     pub fn new(executor: &'e E, sql: &'e str) -> Self {
     // pub fn new(executor: &'e E, sql: (&'e str, Option<String>)) -> Self {
         return Self {
-            // path: path.into(),
             sql: sql,
             arguments: Default::default(),
             executor: executor,
@@ -30,14 +29,11 @@ impl <'e, E: Executor>RawFromFile<'e, E> {
     }
 
     pub async fn execute(self) -> Result<()> {
-        // self
-        //     .executor
-        //     .execute(self.sql().await?, self.arguments)
-        //     .await
-        //     .map(|_| {})
-
-
-        todo!()
+        self
+            .executor
+            .execute(String::from(self.sql), self.arguments)
+            .await
+            .map(|_| {})
     }
 
     pub async fn first<O>(self) -> Result<O>
@@ -46,20 +42,21 @@ impl <'e, E: Executor>RawFromFile<'e, E> {
         for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
         for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        self.executor
-                .fetch_one(self.sql, self.arguments)
-                .await
+        self
+            .executor
+            .fetch_one(self.sql, self.arguments)
+            .await
     }
 
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        // self
-        //     .executor
-        //     .fetch_all::<O>(self.sql().await?, self.arguments)
-        //     .await
-
-        todo!()
+        self
+            .executor
+            .fetch_all::<O>(self.sql, self.arguments)
+            .await
     }
 }

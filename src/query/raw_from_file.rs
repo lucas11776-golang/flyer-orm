@@ -1,15 +1,16 @@
 use std::mem;
 
-use crate::{Database, Entity, Executor, Result, types::Bindable};
+use crate::{Database, Entity, Executor, Result, query::FromFile, types::Bindable};
 
-pub struct RawRead<'e, E: Executor + 'static> {
+pub struct RawFromFile<'e, E: Executor + 'static> {
     path: String,
     arguments: <E::DB as sqlx::Database>::Arguments<'e>,
     executor: &'e E,
 }
 
-// TODO: fix handle read error.
-impl <'e, E: Executor>RawRead<'e, E> {
+impl <'e, E: Executor>FromFile<E> for RawFromFile<'e, E> { }
+
+impl <'e, E: Executor>RawFromFile<'e, E> {
     pub fn new(executor: &'e E, path: impl Into<String>) -> Self {
         return Self {
             path: path.into(),
@@ -28,35 +29,37 @@ impl <'e, E: Executor>RawRead<'e, E> {
         self
     }
 
-    async fn read(&self) -> Result<String> {
-        Database::<E>::cache(self.path.clone()).await
+    async fn sql(&self) -> Result<String> {
+        self
+            .read(self.path.clone())
+            .await
     }
 
-    pub async fn execute(mut self) -> Result<()> {
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
-            .execute(self.read().await.unwrap(), mem::take(&mut self.arguments))
+            .execute(self.sql().await?, self.arguments)
             .await
             .map(|_| {})
     }
 
-    pub async fn first<O>(mut self) -> Result<O>
+    pub async fn first<O>(self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
         self
             .executor
-            .fetch_one(self.read().await.unwrap(), mem::take(&mut self.arguments))
+            .fetch_one(self.sql().await?, self.arguments)
             .await
     }
 
-    pub async fn all<O>(mut self) -> Result<Vec<O>>
+    pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
         self
             .executor
-            .fetch_all::<O>(self.read().await.unwrap(), mem::take(&mut self.arguments))
+            .fetch_all::<O>(self.sql().await?, self.arguments)
             .await
     }
 }

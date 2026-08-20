@@ -16,7 +16,8 @@ pub use sqlx::SqlitePool;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 
-use crate::query::raw_read::RawRead;
+use crate::query::raw_from_file::RawFromFile;
+use crate::query::scalar::Scalar;
 use crate::query::{delete::Delete, insert::Insert, raw::Raw, update::Update, query::Query};
 use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
 use crate::types::{Bindable, QueryResult, WhereClause};
@@ -128,8 +129,22 @@ impl <'q, E: Executor>Database<'q, E> {
         Raw::new(self.executor, sql)
     }
 
-    pub fn raw_read(&self, path: impl Into<String>) -> RawRead<'q, E> {
-        RawRead::new(self.executor, path)
+    pub fn raw_from_file(&self, path: impl Into<String>) -> RawFromFile<'q, E> {
+        RawFromFile::new(self.executor, path)
+    }
+
+    pub fn scaler(&self, sql: &'q str) -> Scalar<'q, E>
+    where
+        E::DB: sqlx::Database,
+    {
+        Scalar::new(self.executor, sql)
+    }
+
+    pub fn scaler_from_file(&self, sql: &'q str) -> Scalar<'q, E>
+    where
+        E::DB: sqlx::Database,
+    {
+        Scalar::new(self.executor, sql)
     }
 
     pub fn query(&self, table: impl Into<String>) -> Query<'q, E> {

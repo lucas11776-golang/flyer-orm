@@ -1,19 +1,19 @@
-use std::mem;
+use sqlx::IntoArguments;
 
-use crate::{Database, Entity, Executor, Result, query::FromFile, types::Bindable};
+use crate::{Entity, Executor, Result, types::Bindable};
 
 pub struct RawFromFile<'e, E: Executor + 'static> {
-    path: String,
+    sql: &'e str,
     arguments: <E::DB as sqlx::Database>::Arguments<'e>,
     executor: &'e E,
 }
 
-impl <'e, E: Executor>FromFile<E> for RawFromFile<'e, E> { }
-
 impl <'e, E: Executor>RawFromFile<'e, E> {
-    pub fn new(executor: &'e E, path: impl Into<String>) -> Self {
+    pub fn new(executor: &'e E, sql: &'e str) -> Self {
+    // pub fn new(executor: &'e E, sql: (&'e str, Option<String>)) -> Self {
         return Self {
-            path: path.into(),
+            // path: path.into(),
+            sql: sql,
             arguments: Default::default(),
             executor: executor,
         };
@@ -29,37 +29,37 @@ impl <'e, E: Executor>RawFromFile<'e, E> {
         self
     }
 
-    async fn sql(&self) -> Result<String> {
-        self
-            .read(self.path.clone())
-            .await
-    }
-
     pub async fn execute(self) -> Result<()> {
-        self
-            .executor
-            .execute(self.sql().await?, self.arguments)
-            .await
-            .map(|_| {})
+        // self
+        //     .executor
+        //     .execute(self.sql().await?, self.arguments)
+        //     .await
+        //     .map(|_| {})
+
+
+        todo!()
     }
 
     pub async fn first<O>(self) -> Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        self
-            .executor
-            .fetch_one(self.sql().await?, self.arguments)
-            .await
+        self.executor
+                .fetch_one(self.sql, self.arguments)
+                .await
     }
 
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
     {
-        self
-            .executor
-            .fetch_all::<O>(self.sql().await?, self.arguments)
-            .await
+        // self
+        //     .executor
+        //     .fetch_all::<O>(self.sql().await?, self.arguments)
+        //     .await
+
+        todo!()
     }
 }

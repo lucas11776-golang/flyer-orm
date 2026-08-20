@@ -1,3 +1,4 @@
+use sqlx::{ColumnIndex, IntoArguments};
 use sqlx::{Database, Pool};
 
 use crate::Entity;
@@ -22,28 +23,80 @@ pub trait Executor: Send + Sync {
 
     async fn execute<'a>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<impl QueryResult>;
 
-    async fn fetch_one<'a, O>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<O>
+    async fn fetch_one<'a, O>(
+        &'a self,
+        sql: &'a str,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
+    ) -> Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        sqlx::query_as_with::<Self::DB, O, _>(sql, arguments)
+            .fetch_one(self.pool())
+            .await
+            .map_err(Into::into)
+    }
 
-    async fn fetch_all<'a, O>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<Vec<O>>
+    async fn fetch_all<'a, O>(
+        &'a self,
+        sql: &'a str,
+        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
+    ) -> Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+            .fetch_all(self.pool())
+            .await
+            .map_err(Into::into)
+    }
 
-    async fn fetch_one_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<O>
+    async fn fetch_one_scalar<'a, O>(&'a self, sql: &'a str, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<O>
     where
         O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>;
-        
-    async fn fetch_all_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<Vec<O>>
+        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>,
+        usize: ColumnIndex<<Self::DB as Database>::Row>,
+        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        sqlx::query_scalar_with::<Self::DB, O, _>(sql, arguments)
+            .fetch_one(self.pool())
+            .await
+            .map_err(Into::into)
+    }
+
+    async fn fetch_optional_scalar<'a, O>(&'a self, sql: &'a str, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Option<O>>
     where
         O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>;
-        
-    async fn fetch_optional_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<Option<O>>
+        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>,
+        usize: ColumnIndex<<Self::DB as Database>::Row>,
+        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        sqlx::query_scalar_with::<Self::DB, O, _>(sql, arguments)
+            .fetch_optional(self.pool())
+            .await
+            .map_err(Into::into)
+    }
+
+
+    async fn fetch_all_scalar<'a, O>(&'a self, sql: &'a str, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Vec<O>>
     where
         O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>;
+        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>,
+        usize: ColumnIndex<<Self::DB as Database>::Row>,
+        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        sqlx::query_scalar_with::<Self::DB, O, _>(sql, arguments)
+            .fetch_all(self.pool())
+            .await
+            .map_err(Into::into)
+    }
 
     async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
 

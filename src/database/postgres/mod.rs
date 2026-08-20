@@ -72,74 +72,16 @@ impl Executor for Postgres {
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'q>,
     ) -> Result<impl crate::QueryResult> {
-        let res = sqlx::query_with::<Self::DB, _>(&sql, arguments)
+        sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
-            .await?;
-
-        Ok(PostgresQueryResult::new(res.rows_affected(), 0))
-    }
-
-    async fn fetch_one<'a, O>(
-        &'a self,
-        sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
-    ) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_one(&self.pool)
             .await
+            .map(|r| PostgresQueryResult::new(r.rows_affected(), 0))
             .map_err(Into::into)
     }
 
-    async fn fetch_all<'a, O>(
-        &'a self,
-        sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
-    ) -> Result<Vec<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
-    }
 
-    async fn fetch_one_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<O>
-    where
-        O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    {
-        sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_one(self.pool())
-            .await
-            .map_err(Into::into)
-    }
+
         
-    async fn fetch_optional_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Option<O>>
-    where
-        O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    {
-        sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_optional(self.pool())
-            .await
-            .map_err(Into::into)
-    }
-        
-    async fn fetch_all_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Vec<O>>
-    where
-        O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    {
-        sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_all(self.pool())
-            .await
-            .map_err(Into::into)
-    }
-
     async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 

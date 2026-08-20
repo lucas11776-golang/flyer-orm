@@ -12,18 +12,18 @@ use crate::{
 mod builder;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct MySQLQueryResult {
+pub struct MySqlQueryResult {
     pub(crate) affected: u64,
     pub(crate) id: u64,
 }
 
-impl MySQLQueryResult {
+impl MySqlQueryResult {
     pub fn new(affected: u64, id: u64) -> Self {
         Self { affected, id }
     }
 }
 
-impl QueryResult for MySQLQueryResult {
+impl QueryResult for MySqlQueryResult {
     fn rows_affected(&self) -> u64 {
         self.affected
     }
@@ -75,73 +75,12 @@ impl Executor for MySQL {
             .execute(&self.pool)
             .await?;
 
-        Ok(MySQLQueryResult::new(
+        Ok(MySqlQueryResult::new(
             result.rows_affected(),
             result.last_insert_id(),
         ))
     }
-
-    async fn fetch_one<'a, O>(
-        &'a self,
-        sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
-    ) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_one(&self.pool)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn fetch_all<'a, O>(
-        &'a self,
-        sql: String,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
-    ) -> Result<Vec<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(Into::into)
-    }
-
-    async fn fetch_one_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<O>
-    where
-        O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    {
-        sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_one(self.pool())
-            .await
-            .map_err(Into::into)
-    }
-        
-    async fn fetch_optional_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Option<O>>
-    where
-        O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    {
-        sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_optional(self.pool())
-            .await
-            .map_err(Into::into)
-    }
-        
-    async fn fetch_all_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Vec<O>>
-    where
-        O: Send + Unpin,
-        O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    {
-        sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_all(self.pool())
-            .await
-            .map_err(Into::into)
-    }
-
+    
     async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
@@ -211,7 +150,7 @@ impl Executor for MySQL {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
         self
-            .fetch_one(sql, arguments)
+            .fetch_one(&sql, arguments)
             .await
     }
 
@@ -222,7 +161,7 @@ impl Executor for MySQL {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
         self
-            .fetch_all(sql, arguments)
+            .fetch_all(&sql, arguments)
             .await
     }
 

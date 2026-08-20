@@ -17,13 +17,6 @@ pub mod scalar_from_file;
 pub mod scalar;
 pub mod update;
 
-pub trait FromFile<E: Executor + 'static> {
-    async fn read(&self, path: String) -> crate::Result<String> {
-        Database::<E>::cache(path).await
-    }
-
-}
-
 pub struct WhereGroup<DB: sqlx::Database> {
     pub conditions: Vec<WhereClause<DB>>,
 }

@@ -1,24 +1,22 @@
 use sqlx::{ColumnIndex, Database, FromRow, IntoArguments, Pool};
-use crate::{Entity, Executor, Result, query::FromFile, types::Bindable};
+use crate::{Executor, Result, types::Bindable};
 
 pub struct ScalarFromFile<'q, E: Executor> 
 where
     E::DB: Database,
 {
-    path: String,
+    sql: &'q str,
     arguments: <E::DB as Database>::Arguments<'q>,
     executor: &'q E,
 }
-
-impl <'q, E: Executor + 'static>FromFile<E> for ScalarFromFile<'q, E> {} 
 
 impl <'q, E: Executor>ScalarFromFile<'q, E> 
 where
     E::DB: Database,
 {
-    pub fn new(executor: &'q E, path: impl Into<String>) -> Self {
+    pub fn new(executor: &'q E, sql: &'q str) -> Self {
         Self {
-            path: path.into(),
+            sql: sql,
             arguments: Default::default(),
             executor,
         }
@@ -37,25 +35,18 @@ where
 
 impl <'q, E: Executor + 'static>ScalarFromFile<'q, E>
 where
-    E::DB: Database,
-    usize: ColumnIndex<<E::DB as Database>::Row>,
-    <E::DB as Database>::Arguments<'q>: IntoArguments<'q, E::DB>,
-    for<'c> &'c Pool<E::DB>: sqlx::Executor<'c, Database = E::DB>,
 {
-    async fn sql(&self) -> Result<String> {
-        self
-            .read(self.path.clone())
-            .await
-    }
-
     pub async fn first<O>(self) -> Result<O>
     where
         O: Send + Unpin,
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
+        usize: ColumnIndex<<E::DB as Database>::Row>,
+        <E::DB as sqlx::Database>::Arguments<'q>: IntoArguments<'q, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
         self
             .executor
-            .fetch_one_scalar(self.sql().await?, self.arguments)
+            .fetch_one_scalar(self.sql, self.arguments)
             .await
     }
 
@@ -63,12 +54,16 @@ where
     where
         O: Send + Unpin,
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
-        (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
+        usize: ColumnIndex<<E::DB as Database>::Row>,
+        <E::DB as sqlx::Database>::Arguments<'q>: IntoArguments<'q, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        self
-            .executor
-            .fetch_one_scalar(self.sql().await?, self.arguments)
-            .await
+        // self
+        //     .executor
+        //     .fetch_one_scalar(self.sql().await?, self.arguments)
+        //     .await
+
+        todo!()
     }
 
     pub async fn all<O>(self) -> Result<Vec<O>>
@@ -77,9 +72,11 @@ where
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
         (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
     {
-        self
-            .executor
-            .fetch_all_scalar(self.sql().await?, self.arguments)
-            .await
+        // self
+        //     .executor
+        //     .fetch_all_scalar(self.sql().await?, self.arguments)
+        //     .await
+
+        todo!()
     }
 }

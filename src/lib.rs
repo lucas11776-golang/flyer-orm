@@ -1,5 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::fs;
+use std::io::Read;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
@@ -67,12 +69,12 @@ impl Connections {
     pub fn remove(&mut self, connection: impl Into<String>) {
     }
 
-    pub async fn cache(&mut self, path: String) -> Result<String> {
-        if let Some(sql) = self.cache.get(&path) {
-            return Ok(sql.into())
+    pub fn cache(&mut self, path: String) -> Result<&str> {
+        if self.cache.get(&path).is_some() {
+            return Ok(self.cache.get(&path).unwrap());
         }
 
-        let file = File::open(&path).await;
+        let file = fs::File::open(&path);
 
         if let Err(err) = file {
             return Err(err.into());
@@ -80,13 +82,13 @@ impl Connections {
 
         let mut cache = String::new();
 
-        if let Err(err) = file.unwrap().read_to_string(&mut cache).await {
+        if let Err(err) = file.unwrap().read_to_string(&mut cache) {
             return Err(err.into());
         }
 
-        self.cache.insert(path, cache.clone());
+        self.cache.insert(path.clone(), cache.clone());
 
-        Ok(cache)
+        Ok(self.cache.get(&path).unwrap())
     }
 }
 
@@ -115,8 +117,8 @@ impl <'q, E: Executor>Database<'q, E> {
     }
         
     #[allow(static_mut_refs)]
-    pub(crate) async fn cache(path: impl Into<String>) -> Result<String> {
-        unsafe { CONNECTIONS.cache(path.into()).await }
+    pub(crate) fn cache<'a>(path: impl Into<String>) -> Result<&'a str> {
+        unsafe { CONNECTIONS.cache(path.into()) }
     }
 
     pub fn pool(&self) -> &'q Pool<E::DB> {
@@ -125,45 +127,45 @@ impl <'q, E: Executor>Database<'q, E> {
             .pool()
     }
 
-    pub fn raw(&self, sql: impl Into<String>) -> Raw<'q, E> {
+    pub fn raw(self, sql: &'q str) -> Raw<'q, E> {
         Raw::new(self.executor, sql)
     }
 
-    pub fn raw_from_file(&self, path: impl Into<String>) -> RawFromFile<'q, E> {
-        RawFromFile::new(self.executor, path)
+    pub fn raw_from_file(self, path: impl Into<String>) -> RawFromFile<'q, E> {
+        RawFromFile::new(self.executor, &Database::<E>::cache(path).unwrap())
     }
 
-    pub fn scaler(&self, sql: &'q str) -> Scalar<'q, E>
+    pub fn scaler(self, sql: &'q str) -> Scalar<'q, E>
     where
         E::DB: sqlx::Database,
     {
         Scalar::new(self.executor, sql)
     }
 
-    pub fn scaler_from_file(&self, sql: &'q str) -> Scalar<'q, E>
+    pub fn scaler_from_file(self, sql: &'q str) -> Scalar<'q, E>
     where
         E::DB: sqlx::Database,
     {
         Scalar::new(self.executor, sql)
     }
 
-    pub fn query(&self, table: impl Into<String>) -> Query<'q, E> {
+    pub fn query(self, table: &'q str) -> Query<'q, E> {
         Query::new(self.executor, table)
     }
 
-    pub fn insert(&self, table: impl Into<String>) -> Insert<'q, E> {
+    pub fn insert(self, table: &'q str) -> Insert<'q, E> {
         Insert::new(self.executor, table)
     }
 
-    pub fn update(&self, table: impl Into<String>) -> Update<'q, E> {
+    pub fn update(self, table: &'q str) -> Update<'q, E> {
         Update::new(self.executor, table)
     }
 
-    pub fn delete(&self, table: impl Into<String>) -> Delete<'q, E> {
+    pub fn delete(self, table: &'q str) -> Delete<'q, E> {
         Delete::new(self.executor, table)
     }
 
-    pub fn query_builder(&self) -> QueryBuilder<'q, E::DB> {
+    pub fn query_builder(self) -> QueryBuilder<'q, E::DB> {
         QueryBuilder::default()
     }
 }

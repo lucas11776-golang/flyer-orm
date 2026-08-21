@@ -18,7 +18,7 @@ impl <'e, E: Executor>Raw<'e, E> {
     }
 
     #[inline]
-    pub fn bind<V>(&mut self, value: V) -> &mut Self
+    pub fn bind<V>(&'e mut self, value: V) -> &'e mut Self
     where
         V: Bindable<E::DB>,
     {

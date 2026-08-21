@@ -19,11 +19,11 @@ impl <'e, E: Executor>Update<'e, E> {
     }
 
     pub fn r#where<V>(
-        &mut self,
+        &'e mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &mut Self
+    ) -> &'e mut Self
     where
         V: Bindable<E::DB>,
     {
@@ -38,11 +38,11 @@ impl <'e, E: Executor>Update<'e, E> {
 
     #[inline]
     pub fn and_where<V>(
-        &mut self,
+        &'e mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &mut Self
+    ) -> &'e mut Self
     where
         V: Bindable<E::DB>,
     {
@@ -50,11 +50,11 @@ impl <'e, E: Executor>Update<'e, E> {
     }
 
     pub fn or_where<V>(
-        &mut  self,
+        &'e mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &mut Self
+    ) -> &'e mut Self
     where
         V: Bindable<E::DB>,
     {
@@ -67,7 +67,7 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub fn where_group<F>(&mut self, callback: F) -> &mut Self
+    pub fn where_group<F>(&'e mut self, callback: F) -> &'e mut Self
     where
         F: FnOnce(&mut WhereGroup<E::DB>),
     {
@@ -82,7 +82,7 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    pub fn bind<V>(&'e mut self, column: impl Into<String>,  value: V) -> &'e mut Self
     where
         V: Bindable<E::DB>,
     {

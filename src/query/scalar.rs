@@ -24,7 +24,7 @@ where
         }
     }
 
-    pub fn bind<V>(&mut self, value: V) -> &mut Self
+    pub fn bind<V>(&'q mut self, value: V) -> &'q mut Self
     where
         V: Bindable<E::DB>,
     {

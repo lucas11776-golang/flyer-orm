@@ -72,39 +72,39 @@ impl <'q, E: Executor + 'static>Database<'q, E> {
         self.executor.pool()
     }
 
-    pub fn raw(&'q self, sql: &'q str) -> Raw<'q, E> {
+    pub fn raw(&self, sql: &'q str) -> Raw<'q, E> {
         Raw::new(self.executor, Ok(sql))
     }
 
-    pub fn raw_from_file(&'q self, path: &str) -> Raw<'q, E> {
+    pub fn raw_from_file(&self, path: &str) -> Raw<'q, E> {
         Raw::new(self.executor, Self::cache(path))
     }
 
-    pub fn scalar(&'q self, sql: &'q str) -> Scalar<'q, E> {
+    pub fn scalar(&self, sql: &'q str) -> Scalar<'q, E> {
         Scalar::new(self.executor, Ok(sql))
     }
 
-    pub fn scalar_from_file(&'q self, path: &str) -> Scalar<'q, E> {
+    pub fn scalar_from_file(&self, path: &str) -> Scalar<'q, E> {
         Scalar::new(self.executor, Self::cache(path))
     }
 
-    pub fn query(&'q self, table: &'q str) -> Query<'q, E> {
+    pub fn query(&self, table: &'q str) -> Query<'q, E> {
         Query::new(self.executor, table)
     }
 
-    pub fn insert(&'q self, table: &'q str) -> Insert<'q, E> {
+    pub fn insert(&self, table: &'q str) -> Insert<'q, E> {
         Insert::new(self.executor, table)
     }
 
-    pub fn update(&'q self, table: &'q str) -> Update<'q, E> {
+    pub fn update(&self, table: &'q str) -> Update<'q, E> {
         Update::new(self.executor, table)
     }
 
-    pub fn delete(&'q self, table: &'q str) -> Delete<'q, E> {
+    pub fn delete(&self, table: &'q str) -> Delete<'q, E> {
         Delete::new(self.executor, table)
     }
 
-    pub fn query_builder(&'q self) -> QueryBuilder<'q, E::DB> {
-        QueryBuilder::default()
+    pub fn query_builder(&self, sql: &'q str) -> QueryBuilder<'q, E::DB> {
+        QueryBuilder::new(sql)
     }
 }

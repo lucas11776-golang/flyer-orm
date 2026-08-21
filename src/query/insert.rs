@@ -13,7 +13,7 @@ impl <'e, E: Executor>Insert<'e, E> {
         }
     }
 
-    pub fn bind<V>(&mut self, column: impl Into<String>,  value: V) -> &mut Self
+    pub fn bind<V>(&'e mut self, column: impl Into<String>,  value: V) -> &'e mut Self
     where
         V: Bindable<E::DB>,
     {

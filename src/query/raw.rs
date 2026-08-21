@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sqlx::IntoArguments;
 
-use crate::{types::Bindable, Entity, Executor, Result};
+use crate::{Entity, Executor, Result, types::{Args, ArgsAsRef, Bindable}};
 
 pub struct Raw<E: Executor> {
     sql: Result<String>,
@@ -29,6 +29,16 @@ impl <E: Executor>Raw<E> {
     }
 }
 
+pub fn args_as_ref<'a, DB>(arguments: &'a Args<DB>) -> ArgsAsRef<'a, DB>
+where
+    DB: sqlx::Database
+{
+    arguments
+        .iter()
+        .map(|v| v)
+        .collect()
+}
+
 impl <E: Executor>Raw<E>
 where
     for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
@@ -42,23 +52,13 @@ where
             .map(|_| ())
     }
 
-    fn get_arguments<'a>(args: Vec<Box<dyn Bindable<E::DB>>>) -> <E::DB as sqlx::Database>::Arguments<'a> {
-        let mut arguments= Default::default();
-
-        for arg in args {
-            arg.bind_to(&mut arguments).unwrap();
-        }
-
-        return arguments;
-    }
-
     pub async fn first<O>(self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         self
             .executor
-            .fetch_one(self.sql?, self.arguments)
+            .fetch_one(self.sql?, args_as_ref(&self.arguments))
             .await
     }
 
@@ -68,7 +68,7 @@ where
     {
         self
             .executor
-            .fetch_all::<O>(self.sql?, Default::default())
+            .fetch_all::<O>(self.sql?, args_as_ref(&self.arguments))
             .await
     }
 }

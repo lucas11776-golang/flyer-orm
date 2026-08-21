@@ -1,12 +1,13 @@
 use crate::{
-    SqlitePool,
     Entity,
     Executor,
     Pagination,
     QueryResult,
     Result,
+    SqlitePool,
     database::sqlite::builder::QueryBuilder,
     query::Statement,
+    utils::to_args,
 };
 
 mod builder;
@@ -87,7 +88,7 @@ impl Executor for SQLite {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
         self
-            .execute(sql, arguments)
+            .execute(sql, to_args(arguments))
             .await
     }
 
@@ -97,7 +98,7 @@ impl Executor for SQLite {
     {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
-        let res = sqlx::query_with::<Self::DB, _>(&sql, arguments)
+        let res = sqlx::query_with::<Self::DB, _>(&sql, to_args(arguments))
             .execute(&self.pool)
             .await?;
 
@@ -116,7 +117,7 @@ impl Executor for SQLite {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
         self
-            .execute(sql, arguments)
+            .execute(sql, to_args(arguments))
             .await
     }
 
@@ -124,7 +125,7 @@ impl Executor for SQLite {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
         self
-            .execute(sql, arguments)
+            .execute(sql, to_args(arguments))
             .await
     }
 
@@ -138,22 +139,11 @@ impl Executor for SQLite {
             .having(&statement.having)
             .compile();
 
-        sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, arguments)
+        sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, to_args(arguments))
             .fetch_one(&self.pool)
             .await
             .map(|total| total)
             .map_err(Into::into)
-    }
-
-    async fn first<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        let (sql, arguments) = QueryBuilder::new(false).query(statement);
-
-        // self.fetch_one(&sql, arguments).await
-
-        todo!()
     }
 
     async fn all<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<Vec<O>>
@@ -162,9 +152,20 @@ impl Executor for SQLite {
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        // self.fetch_all(sql, arguments).await
+        self
+            .fetch_all(sql, arguments)
+            .await
+    }
 
-        todo!()
+    async fn first<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+    {
+        let (sql, arguments) = QueryBuilder::new(false).query(statement);
+        
+        self
+            .fetch_one(sql, arguments)
+            .await
     }
 
     async fn paginate<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<Pagination<O>>

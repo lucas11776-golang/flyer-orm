@@ -21,6 +21,7 @@ pub mod database;
 pub mod executor;
 pub mod query;
 pub mod types;
+pub mod utils;
 
 pub use anyhow::Result;
 pub use sqlx;

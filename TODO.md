@@ -1,7 +1,7 @@
 # TODO
 
 -  Should Find common thing and refactor time to helpers of pattern.
-    * Executor
+    * Executor - Important component is QueryBuilder must refactor base on it.
 
 
 # Install Package From Github

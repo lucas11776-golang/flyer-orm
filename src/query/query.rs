@@ -231,7 +231,7 @@ impl <E: Executor>Query<E> {
     }
 
     pub fn or_having<V>(
-        mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,

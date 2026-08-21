@@ -1,12 +1,13 @@
 use crate::{
-    PgPool,
     Entity,
     Executor,
     Pagination,
+    PgPool,
     QueryResult,
     Result,
     database::postgres::builder::QueryBuilder,
     query::Statement,
+    utils::to_args,
 };
 
 mod builder;
@@ -79,7 +80,7 @@ impl Executor for Postgres {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 
         self
-            .execute(sql, arguments)
+            .execute(sql, to_args(arguments))
             .await
     }
 
@@ -90,7 +91,7 @@ impl Executor for Postgres {
         let (mut sql, arguments) = QueryBuilder::new(false).insert(statement);
         sql.push_str(" RETURNING *");
 
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, to_args(arguments))
             .fetch_one(&self.pool)
             .await
             .map_err(Into::into)
@@ -100,7 +101,7 @@ impl Executor for Postgres {
         let (sql, arguments) = QueryBuilder::new(false).update(statement);
 
         self
-            .execute(sql, arguments)
+            .execute(sql, to_args(arguments))
             .await
     }
 
@@ -108,7 +109,7 @@ impl Executor for Postgres {
         let (sql, arguments) = QueryBuilder::new(false).delete(statement);
 
         self
-            .execute(sql, arguments)
+            .execute(sql, to_args(arguments))
             .await
     }
 
@@ -122,7 +123,7 @@ impl Executor for Postgres {
             .having(&statement.having)
             .compile();
 
-        sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, arguments)
+        sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, to_args(arguments))
             .fetch_one(&self.pool)
             .await
             .map(|total| total)
@@ -135,10 +136,9 @@ impl Executor for Postgres {
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_all(&self.pool)
+        self
+            .fetch_all(sql, arguments)
             .await
-            .map_err(Into::into)
     }
 
     async fn first<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<O>
@@ -146,11 +146,10 @@ impl Executor for Postgres {
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
-
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-            .fetch_one(&self.pool)
+        
+        self
+            .fetch_one(sql, arguments)
             .await
-            .map_err(Into::into)
     }
 
     async fn paginate<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>

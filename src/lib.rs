@@ -5,6 +5,11 @@ use std::io::Read;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
+use crate::query::scalar::Scalar;
+use crate::query::{delete::Delete, insert::Insert, raw::Raw, update::Update, query::Query};
+use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
+use crate::types::{Bindable, QueryResult, WhereClause};
+
 pub use database::mysql::MySQL;
 pub use database::postgres::Postgres;
 pub use database::sqlite::SQLite;
@@ -15,12 +20,6 @@ pub use sqlx::PgPool;
 use sqlx::Pool;
 use sqlx::QueryBuilder;
 pub use sqlx::SqlitePool;
-
-use crate::query::raw_from_file::RawFromFile;
-use crate::query::scalar::Scalar;
-use crate::query::{delete::Delete, insert::Insert, raw::Raw, update::Update, query::Query};
-use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
-use crate::types::{Bindable, QueryResult, WhereClause};
 
 pub mod database;
 pub mod query;
@@ -34,7 +33,6 @@ pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
 
-// static mut CONNECTIONS: LazyLock<HashMap<String, Arc<Box<dyn Any>>>> = LazyLock::new(|| HashMap::new());
 static mut CONNECTIONS: LazyLock<Connections> = LazyLock::new(|| Connections::new());
 
 pub(crate) struct Connections {
@@ -127,25 +125,19 @@ impl <'q, E: Executor>Database<'q, E> {
     }
 
     pub fn raw(self, sql: &'q str) -> Raw<'q, E> {
-        Raw::new(self.executor, sql)
+        Raw::new(self.executor, Ok(sql))
     }
 
-    pub fn raw_from_file(self, path: impl Into<String>) -> RawFromFile<'q, E> {
-        RawFromFile::new(self.executor, &Database::<E>::cache(path).unwrap())
+    pub fn raw_from_file(self, path: impl Into<String>) -> Raw<'q, E> {
+        Raw::new(self.executor, Database::<E>::cache(path))
     }
 
-    pub fn scaler(self, sql: &'q str) -> Scalar<'q, E>
-    where
-        E::DB: sqlx::Database,
-    {
-        Scalar::new(self.executor, sql)
+    pub fn scaler(self, sql: &'q str) -> Scalar<'q, E> {
+        Scalar::new(self.executor, Ok(sql))
     }
 
-    pub fn scaler_from_file(self, sql: &'q str) -> Scalar<'q, E>
-    where
-        E::DB: sqlx::Database,
-    {
-        Scalar::new(self.executor, sql)
+    pub fn scaler_from_file(self, path: &'q str) -> Scalar<'q, E> {
+        Scalar::new(self.executor, Database::<E>::cache(path))
     }
 
     pub fn query(self, table: &'q str) -> Query<'q, E> {

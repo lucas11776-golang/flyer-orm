@@ -5,7 +5,7 @@ pub struct Scalar<'q, E: Executor>
 where
     E::DB: Database,
 {
-    sql: &'q str,
+    sql: Result<&'q str>,
     arguments: <E::DB as Database>::Arguments<'q>,
     executor: &'q E,
 }
@@ -14,7 +14,7 @@ impl<'q, E: Executor> Scalar<'q, E>
 where
     E::DB: Database,
 {
-    pub fn new(executor: &'q E, sql: &'q str) -> Self {
+    pub fn new(executor: &'q E, sql: Result<&'q str>) -> Self {
         Self {
             sql,
             arguments: Default::default(),
@@ -46,7 +46,7 @@ where
         O: Send + Unpin,
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
     {
-        sqlx::query_scalar_with::<E::DB, O, _>(self.sql, self.arguments)
+        sqlx::query_scalar_with::<E::DB, O, _>(self.sql?, self.arguments)
             .fetch_one(self.executor.pool())
             .await
             .map_err(Into::into)
@@ -59,7 +59,7 @@ where
         (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
         O: Entity + for<'r> FromRow<'r, <E::DB as Database>::Row> + Send + Unpin,
     {
-        sqlx::query_scalar_with::<E::DB, O, _>(self.sql, self.arguments)
+        sqlx::query_scalar_with::<E::DB, O, _>(self.sql?, self.arguments)
             .fetch_optional(self.executor.pool())
             .await
             .map_err(Into::into)
@@ -71,7 +71,7 @@ where
         O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
         (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
     {
-        sqlx::query_scalar_with::<E::DB, O, _>(self.sql, self.arguments)
+        sqlx::query_scalar_with::<E::DB, O, _>(self.sql?, self.arguments)
             .fetch_all(self.executor.pool())
             .await
             .map_err(Into::into)

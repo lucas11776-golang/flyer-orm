@@ -11,9 +11,7 @@ pub use crate::Entity;
 pub mod delete;
 pub mod insert;
 pub mod query;
-pub mod raw_from_file;
 pub mod raw;
-pub mod scalar_from_file;
 pub mod scalar;
 pub mod update;
 

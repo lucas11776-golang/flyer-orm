@@ -4,41 +4,36 @@ use std::fs;
 use std::sync::{Arc, RwLock};
 
 use crate::Result;
-
 use crate::Executor;
 
 pub(crate) struct Connections {
     cache: RwLock<HashMap<String, &'static str>>,
-    connections: RwLock<HashMap<String, Arc<dyn Any + Send + Sync>>>,
+    connections: HashMap<String, Arc<dyn Any + Send + Sync>>,
 }
 
 impl Connections {
     pub fn new() -> Self {
         Self {
             cache: RwLock::new(HashMap::new()),
-            connections: RwLock::new(HashMap::new()),
+            connections: HashMap::new(),
         }
     }
 
-    pub fn add<E: Executor + 'static>(&self, connection: impl Into<String>, executor: E) {
+    pub fn add<E: Executor + 'static>(&mut self, connection: impl Into<String>, executor: E) {
         self.connections
-            .write()
-            .unwrap()
             .insert(connection.into(), Arc::new(executor));
     }
 
-    pub fn get<E: Executor + 'static>(&self, connection: &str) -> Arc<E> {
+    pub fn get<E: Executor + 'static>(&self, connection: &str) -> &E {
         self.connections
-            .read()
-            .unwrap()
             .get(connection)
-            .cloned()
-            .and_then(|any| any.downcast::<E>().ok())
-            .unwrap_or_else(|| panic!("Connection '{connection}' not found or type mismatch"))
+            .unwrap()
+            .downcast_ref::<E>()
+            .unwrap()
     }
 
-    pub fn remove(&self, connection: &str) {
-        self.connections.write().unwrap().remove(connection);
+    pub fn remove(&mut self, connection: &str) {
+        self.connections.remove(connection);
     }
 
     pub fn cache(&self, path: &str) -> Result<&'static str> {

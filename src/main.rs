@@ -18,7 +18,7 @@ pub struct User {
     pub email: String,
 }
 
-pub fn db() -> Database<Postgres> {
+pub fn db<'a>() -> Database<'a, Postgres> {
     Database::<Postgres>::connection("default")
 }
 

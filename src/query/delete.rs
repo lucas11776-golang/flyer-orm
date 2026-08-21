@@ -19,11 +19,11 @@ impl <'a, E: Executor>Delete<'a, E> {
     }
 
     pub fn r#where<V>(
-        mut self,
+        &mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> Self
+    ) -> &mut Self
     where
         V: Bindable<E::DB>,
     {
@@ -38,11 +38,11 @@ impl <'a, E: Executor>Delete<'a, E> {
 
     #[inline]
     pub fn and_where<V>(
-        self,
+        &mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> Self
+    ) -> &mut Self
     where
         V: Bindable<E::DB>,
     {
@@ -50,11 +50,11 @@ impl <'a, E: Executor>Delete<'a, E> {
     }
 
     pub fn or_where<V>(
-        mut self,
+        &mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> Self
+    ) -> &mut Self
     where
         V: Bindable<E::DB>,
     {
@@ -67,7 +67,7 @@ impl <'a, E: Executor>Delete<'a, E> {
         self
     }
 
-    pub fn where_group<F>(mut self, callback: F) -> Self
+    pub fn where_group<F>(&mut self, callback: F) -> &mut Self
     where
         F: FnOnce(&mut WhereGroup<E::DB>),
     {

@@ -1,57 +1,74 @@
-use std::mem;
+use std::sync::Arc;
 
-use crate::{Entity, Executor, Result, types::Bindable};
+use sqlx::IntoArguments;
 
-pub struct Raw<'e, E: Executor> {
-    sql: String,
-    arguments: <E::DB as sqlx::Database>::Arguments<'e>,
-    executor: &'e E,
+use crate::{Entity, Executor, Result, types::{Args, ArgsAsRef, Bindable}};
+
+pub struct Raw<E: Executor> {
+    sql: Result<String>,
+    arguments: Vec<Box<dyn Bindable<E::DB>>>,
+    executor: Arc<E>,
 }
 
-impl <'e, E: Executor>Raw<'e, E> {
-    pub fn new(executor: &'e E, sql: impl Into<String>) -> Self {
-        return Self {
-            sql: sql.into(),
+impl <E: Executor>Raw<E> {
+    pub fn new(executor: Arc<E>, sql: Result<String>) -> Self {
+        Self {
+            sql: sql,
             arguments: Default::default(),
             executor: executor,
-        };
+        }
     }
 
+    #[inline]
     pub fn bind<V>(mut self, value: V) -> Self
     where
         V: Bindable<E::DB>,
     {
-        value
-            .bind_to(&mut self.arguments)
-            .unwrap();
+        self.arguments.push(Box::new(value));
         self
     }
+}
 
-    pub async fn execute(mut self) -> Result<()> {
+pub fn args_as_ref<'a, DB>(arguments: &'a Args<DB>) -> ArgsAsRef<'a, DB>
+where
+    DB: sqlx::Database
+{
+    arguments
+        .iter()
+        .map(|v| v)
+        .collect()
+}
+
+impl <E: Executor>Raw<E>
+where
+    for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
+    for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
+{
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
-            .execute(self.sql.clone(), mem::take(&mut self.arguments))
+            .execute(String::from(self.sql?), Default::default())
             .await
-            .map(|_| {})
+            .map(|_| ())
     }
 
-    pub async fn first<O>(mut self) -> Result<O>
+    pub async fn first<O>(self) -> Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         self
             .executor
-            .fetch_one(self.sql.clone(), mem::take(&mut self.arguments))
+            .fetch_one(self.sql?, args_as_ref(&self.arguments))
             .await
     }
 
-    pub async fn all<O>(mut self) -> Result<Vec<O>>
+    pub async fn all<O>(self) -> Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin, 
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
     {
         self
             .executor
-            .fetch_all::<O>(self.sql.clone(), mem::take(&mut self.arguments))
+            .fetch_all::<O>(self.sql?, args_as_ref(&self.arguments))
             .await
     }
 }

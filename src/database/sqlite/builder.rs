@@ -1,11 +1,11 @@
 use std::{fmt::Write, mem};
 
 use crate::{
-    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause,
+    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause, types::ArgsAsRef,
 };
 
 pub struct QueryBuilder<'c, DB: sqlx::Database> {
-    arguments: <DB as sqlx::Database>::Arguments<'c>,
+    arguments: ArgsAsRef<'c, DB>,
     sql: String,
     dry_run: bool,
 }
@@ -28,7 +28,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.query(statement).0
     }
 
-    pub fn insert(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+    pub fn insert(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.sql.push_str("INSERT INTO ");
         self.sql.push_str(&statement.table);
 
@@ -58,7 +58,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.compile()
     }
 
-    pub fn update(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+    pub fn update(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.sql.push_str("UPDATE ");
         self.sql.push_str(&statement.table);
         self.sql.push_str(" SET ");
@@ -77,7 +77,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.compile()
     }
 
-    pub fn delete(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+    pub fn delete(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.sql.push_str("DELETE FROM ");
         self.sql.push_str(&statement.table);
 
@@ -86,7 +86,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.compile()
     }
 
-    pub fn query(mut self, statement: &Statement<DB>) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+    pub fn query(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.select(&statement.fields)
             .from(&statement.table)
             .joins(&statement.join)
@@ -124,7 +124,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn joins(&mut self, joins: &[Join]) -> &mut Self {
+    pub fn joins(&mut self, joins: &'c [Join]) -> &mut Self {
         for join in joins {
             let _ = write!(
                 self.sql,
@@ -136,7 +136,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn conditions(&mut self, conditions: &[WhereClause<DB>], is_root: bool) -> &mut Self {
+    pub fn conditions(&mut self, conditions: &'c [WhereClause<DB>], is_root: bool) -> &mut Self {
         if conditions.is_empty() {
             return self;
         }
@@ -220,7 +220,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn group_by(&mut self, group_by: &Option<String>) -> &mut Self {
+    pub fn group_by(&mut self, group_by: &'c Option<String>) -> &mut Self {
         if let Some(column) = group_by {
             self.sql.push_str(" GROUP BY ");
             self.sql.push_str(column);
@@ -229,7 +229,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn having(&mut self, having: &[Having<DB>]) -> &mut Self {
+    pub fn having(&mut self, having: &'c [Having<DB>]) -> &mut Self {
         if having.is_empty() {
             return self;
         }
@@ -250,7 +250,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn order_by(&mut self, order_by: &[OrderValue]) -> &mut Self {
+    pub fn order_by(&mut self, order_by: &'c [OrderValue]) -> &mut Self {
         if order_by.is_empty() {
             return self;
         }
@@ -267,7 +267,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn limit(&mut self, limit: &Option<Limit<DB>>) -> &mut Self {
+    pub fn limit(&mut self, limit: &'c Option<Limit<DB>>) -> &mut Self {
         if let Some(limit) = limit {
             self.bind_to(&limit.value);
             self.sql.push_str(" LIMIT ");
@@ -277,7 +277,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn offset(&mut self, offset: &Option<Offset<DB>>) -> &mut Self {
+    pub fn offset(&mut self, offset: &'c Option<Offset<DB>>) -> &mut Self {
         if let Some(offset) = offset {
             self.bind_to(&offset.value);
             self.sql.push_str(" OFFSET ");
@@ -287,16 +287,13 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn compile(&mut self) -> (String, <DB as sqlx::Database>::Arguments<'c>) {
+    pub fn compile(&mut self) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         (mem::take(&mut self.sql), mem::take(&mut self.arguments))
     }
 
-    fn bind_to(&mut self, value: &Box<dyn Bindable<DB>>) {
+    fn bind_to(&mut self, value: &'c Box<dyn Bindable<DB>>) {
         if !self.dry_run {
-            value
-                .as_ref()
-                .bind_to(&mut self.arguments)
-                .unwrap();
+            self.arguments.push(value);
         }
     }
 }

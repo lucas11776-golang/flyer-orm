@@ -1,7 +1,10 @@
-use std::any::Any;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
+
+use crate::connections::Connections;
+use crate::query::scalar::Scalar;
+use crate::query::{delete::Delete, insert::Insert, query::Query, raw::Raw, update::Update};
+use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
+use crate::types::{Bindable, QueryResult, WhereClause};
 
 pub use database::mysql::MySQL;
 pub use database::postgres::Postgres;
@@ -10,435 +13,99 @@ pub use executor::Executor;
 
 pub use sqlx::MySqlPool;
 pub use sqlx::PgPool;
+use sqlx::Pool;
+use sqlx::QueryBuilder;
 pub use sqlx::SqlitePool;
 
-use crate::query::delete::Delete;
-use crate::query::update::Update;
-use crate::{
-    query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup, insert::Insert, raw::Raw},
-    types::{Bindable, Connector, JoinType, Order, QueryResult, WhereClause},
-};
-
 pub mod database;
+pub mod executor;
 pub mod query;
 pub mod types;
-pub mod executor;
+pub mod utils;
 
 pub use anyhow::Result;
 pub use sqlx;
+
+mod connections;
 
 pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
 
-static mut CONNECTIONS: LazyLock<HashMap<String, Arc<Box<dyn Any>>>> = LazyLock::new(|| HashMap::new());
+static mut CONNECTIONS: LazyLock<Connections> = LazyLock::new(Connections::new);
 
-pub struct Connection;
+pub struct Database<E: Executor + 'static> {
+    executor: Arc<E>,
+}
 
-impl Connection {
+impl <E: Executor + 'static>Database<E> {
     #[allow(static_mut_refs)]
-    pub fn add<E: Executor + 'static>(connection: impl Into<String>, executor: E) {
+    pub fn connection(connection: &str) -> Self {
+       unsafe {
+            Self {
+                executor: CONNECTIONS.get::<E>(connection),
+            }
+       }
+    }
+
+    #[allow(static_mut_refs)]
+    pub fn add_connection(connection: impl Into<String>, executor: E) {
         unsafe {
-            CONNECTIONS.insert(connection.into(), Arc::new(Box::new(executor)));
+            CONNECTIONS.add(connection, executor);
         }
     }
 
     #[allow(static_mut_refs)]
-    pub fn get<'a, E: Executor + 'static>(connection: impl Into<String>) -> &'a E {
+    pub fn remove(connection: &str) {
         unsafe {
-            CONNECTIONS
-                .get(&connection.into())
-                .unwrap()
-                .downcast_ref::<E>()
-                .unwrap()
+            CONNECTIONS.remove(connection);
         }
     }
 
-    pub fn query<'a, E: Executor + 'static>(connection: impl Into<String>) -> Query<'a, E> {
-        Query::new(Self::get(connection))
-    }
-
-    pub fn db<'a, E: Executor + 'static>(connection: impl Into<String>) -> &'a E  {
-        Self::get::<E>(connection)
-    }
-
-    pub fn raw<'a, E: Executor + 'static>(connection: impl Into<String>, sql: impl Into<String>) -> Raw<'a, E> {
-        Raw::new(Self::get(connection), sql)
-    }
-}
-
-pub struct Query<'q, E: Executor> {
-    executor: &'q E,
-    statement: Statement<E::DB>,
-}
-
-#[derive(Debug)]
-pub struct Transaction<'t, E: Executor> {
-    transaction: sqlx::Transaction<'t, E::DB>
-}
-
-impl <'t, E: Executor>Transaction<'t, E> {
-    pub(crate) fn new(transaction: sqlx::Transaction<'t, E::DB>) -> Self {
-        Self { transaction: transaction }
-    }
-
-    pub async fn commit(self) -> Result<()> {
-        self
-            .transaction
-            .commit()
-            .await
-            .map_err(|e| e.into())
-    }
-
-    pub async fn rollback(self) -> Result<()> {
-        self
-            .transaction
-            .rollback()
-            .await
-            .map_err(|e| e.into())
-    }
-}
-
-impl<'q, E: Executor> Query<'q, E> {
-    #[inline]
-    pub fn new(executor: &'q E, ) -> Self {
-        Self {
-            executor,
-            statement: Statement::new(),
+    #[allow(static_mut_refs)]
+    pub fn cache(path: impl Into<String>) -> Result<String> {
+        unsafe {
+            CONNECTIONS.cache(&path.into())
         }
     }
 
-    pub async fn transaction(&self) -> Result<Transaction<'q, E>> {
-        let transaction = self
-            .executor
-            .db()
-            .begin()
-            .await
-            .unwrap();
-
-        Ok(Transaction::new(transaction))
+    pub fn pool(&self) -> &Pool<E::DB> {
+        self.executor.pool()
     }
 
-    #[inline]
-    pub fn to_sql(&self) -> String {
-        self.executor.to_sql(&self.statement)
+    pub fn raw(&self, sql: impl Into<String>) -> Raw<E> {
+        Raw::new(self.executor.clone(), Ok(sql.into()))
     }
 
-    #[inline]
-    pub fn raw(&self, sql: impl Into<String>) -> Raw<'_, E> {
-        Raw::new(self.executor, sql)
+    pub fn raw_from_file(&self, path: impl Into<String>) -> Raw<E> {
+        Raw::new(self.executor.clone(), Self::cache(path))
     }
 
-    pub fn table(mut self, table: impl Into<String>) -> Self {
-        self.statement.table = table.into();
-        self
+    pub fn scalar(&self, sql: impl Into<String>) -> Scalar<E> {
+        Scalar::new(self.executor.clone(), Ok(sql.into()))
     }
 
-    pub fn select(mut self, columns: Vec<impl Into<String>>) -> Self {
-        // TODO: use iter.map
-        for c in columns {
-            self.statement.fields.push(c.into());
-        }
-        self
+    pub fn scalar_from_file(&self, path: impl Into<String>) -> Scalar<E> {
+        Scalar::new(self.executor.clone(), Self::cache(path))
     }
 
-    #[inline]
-    pub fn insert(&'q mut self) -> Insert<'q, E>{
-        Insert::new(self.statement.table.clone(), self.executor)
+    pub fn query(&self, table: impl Into<String>) -> Query<E> {
+        Query::new(self.executor.clone(), table)
     }
 
-    #[inline]
-    pub fn update(&mut self) -> Update<'q, E>{
-        Update::new(self.statement.table.clone(), self.executor)
+    pub fn insert(&self, table: impl Into<String>) -> Insert<E> {
+        Insert::new(self.executor.clone(), table)
     }
 
-    #[inline]
-    pub fn delete(&mut self) -> Delete<'q, E>{
-        Delete::new(self.statement.table.clone(), self.executor)
+    pub fn update(&self, table: impl Into<String>) -> Update<E> {
+        Update::new(self.executor.clone(), table)
     }
 
-    fn join_push(
-        mut self,
-        join_type: JoinType,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.statement.join.push(Join {
-            table: table.into(),
-            column: column.into(),
-            operator: operator.into(),
-            column_table: column_table.into(),
-            join_type,
-        });
-        self
+    pub fn delete(&self, table: impl Into<String>) -> Delete<E> {
+        Delete::new(self.executor.clone(), table)
     }
 
-    pub fn join(
-        self,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.join_push(JoinType::Join, table, column, operator, column_table)
-    }
-
-    pub fn join_right(
-        self,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.join_push(JoinType::RightJoin, table, column, operator, column_table)
-    }
-
-    pub fn join_left(
-        self,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.join_push(JoinType::LeftJoin, table, column, operator, column_table)
-    }
-
-    pub fn join_inner(
-        self,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.join_push(JoinType::InnerJoin, table, column, operator, column_table)
-    }
-
-    pub fn join_full_outer(
-        self,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.join_push(
-            JoinType::FullOuterJoin,
-            table,
-            column,
-            operator,
-            column_table,
-        )
-    }
-
-    pub fn join_cross(
-        self,
-        table: impl Into<String>,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        column_table: impl Into<String>,
-    ) -> Self {
-        self.join_push(JoinType::CrossJoin, table, column, operator, column_table)
-    }
-
-    pub fn r#where<V>(
-        mut self,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.statement.conditions.push(WhereClause::Clause {
-            connector: Connector::And,
-            column: column.into(),
-            operator: operator.into(),
-            value: Box::new(value),
-        });
-        self
-    }
-
-    #[inline]
-    pub fn and_where<V>(
-        self,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.r#where(column, operator, value)
-    }
-
-    pub fn or_where<V>(
-        mut self,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.statement.conditions.push(WhereClause::Clause {
-            connector: Connector::Or,
-            column: column.into(),
-            operator: operator.into(),
-            value: Box::new(value),
-        });
-        self
-    }
-
-    pub fn where_group<F>(mut self, callback: F) -> Self
-    where
-        F: FnOnce(&mut WhereGroup<E::DB>),
-    {
-        let mut group = WhereGroup::new();
-
-        callback(&mut group);
-
-        self.statement.conditions.push(WhereClause::Group {
-            connector: Connector::And,
-            conditions: group.conditions,
-        });
-        self
-    }
-
-    pub fn group_by(mut self, column: impl Into<String>) -> Self {
-        self.statement.group_by = Some(column.into());
-        self
-    }
-
-    fn having_push<V>(
-        mut self,
-        connector: Connector,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.statement.having.push(Having {
-            column: column.into(),
-            operator: operator.into(),
-            value: Box::new(value),
-            connector,
-        });
-        self
-    }
-
-    pub fn having<V>(
-        self,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.having_push(Connector::And, column, operator, value)
-    }
-
-    #[inline]
-    pub fn and_having<V>(
-        self,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.having_push(Connector::And, column, operator, value)
-    }
-
-    pub fn or_having<V>(
-        self,
-        column: impl Into<String>,
-        operator: impl Into<String>,
-        value: V,
-    ) -> Self
-    where
-        V: Bindable<E::DB>,
-    {
-        self.having_push(Connector::Or, column, operator, value)
-    }
-
-    pub fn order_by(mut self, column: impl Into<String>, order: Order) -> Self {
-        self.statement
-            .order_by
-            .push(OrderValue::new(column.into(), order));
-        self
-    }
-
-    pub fn limit(mut self, limit: i64) -> Self
-    where
-        for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
-    {
-        self.statement.limit = Some(Limit::new(limit));
-        self
-    }
-
-    pub fn offset(mut self, offset: i64) -> Self
-    where
-        for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
-    {
-        self.statement.offset = Some(Offset::new(offset));
-        self
-    }
-
-    pub async fn first<O>(&self) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
-    {
-        self
-            .executor
-            .first(&self.statement)
-            .await
-    }
-
-    pub async fn all<O>(&self) -> Result<Vec<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
-    {
-        self
-            .executor
-            .all(&self.statement)
-            .await
-    }
-
-    pub async fn count(&self) -> Result<i64> {
-        self
-            .executor
-            .count(&self.statement)
-            .await
-    }
-
-    pub async fn exists(&self) -> Result<bool> {
-        self
-            .count()
-            .await
-            .map(|c| c > 0)
-    }
-    
-    pub async fn paginate<O>(&mut self, page: i64, limit: i64) -> Result<Pagination<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
-        for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
-    {
-        let limit_stable = if limit < 0 { 0 } else { limit };
-        let page_stable = if page < 0 { 1 } else { page };
-        let offset: i64 = limit_stable * page_stable - limit_stable;
-
-        self.statement.limit = Some(Limit::new(limit_stable));
-        self.statement.offset = Some(Offset::new(offset));
-        self.statement.page = Some(page); // Should get it using (limit and offset)
-
-        self
-            .executor
-            .paginate(&mut self.statement)
-            .await
+    pub fn query_builder<'q>(&self, sql: impl Into<String>) -> QueryBuilder<'q, E::DB> {
+        QueryBuilder::new(sql)
     }
 }

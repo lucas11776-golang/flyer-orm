@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Executor,
     Result,
@@ -5,20 +7,16 @@ use crate::{
     types::{Bindable, Connector, WhereClause}
 };
 
-pub struct Delete<'a, E: Executor> {
-    executor: &'a E,
+pub struct Delete<E: Executor> {
+    executor: Arc<E>,
     statement: Statement<E::DB>,
 }
 
-impl <'a, E: Executor>Delete<'a, E> {
-    pub fn new(table: impl Into<String>, executor: &'a E) -> Self {
+impl <E: Executor>Delete<E> {
+    pub fn new(executor: Arc<E>, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
-            statement: {
-                let mut stmt = Statement::new();
-                stmt.table = table.into();
-                stmt
-            }
+            statement: Statement::new(table),
         }
     }
 
@@ -86,7 +84,7 @@ impl <'a, E: Executor>Delete<'a, E> {
         self
     }
 
-    pub async fn execute(&'a mut self) -> Result<()> {
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
             .delete(&self.statement)

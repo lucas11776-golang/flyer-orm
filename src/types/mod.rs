@@ -1,8 +1,12 @@
 use std::any::Any;
 
-use sqlx::{Arguments, error::BoxDynError};
+use sqlx::{Arguments as _, error::BoxDynError};
 
 use crate::Result;
+
+pub type ArgsAsRef<'a, DB> = Vec<&'a Box<dyn Bindable<DB>>>;
+
+pub type Args<DB> = Vec<Box<dyn Bindable<DB>>>;
 
 pub trait Bindable<DB: sqlx::Database>: Send + Sync + 'static {
     fn bind_to<'q>(&self, args: &mut <DB as sqlx::Database>::Arguments<'q>) -> Result<(), BoxDynError>;

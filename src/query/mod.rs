@@ -2,17 +2,16 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::{
-    WhereClause,
-    types::{Bindable, Connector, JoinType, Order}
-};
+use crate::{WhereClause, types::{Bindable, Connector, JoinType, Order}};
 
 pub use crate::Entity;
 
-pub mod insert;
-pub mod update;
 pub mod delete;
+pub mod insert;
+pub mod query;
 pub mod raw;
+pub mod scalar;
+pub mod update;
 
 pub struct WhereGroup<DB: sqlx::Database> {
     pub conditions: Vec<WhereClause<DB>>,
@@ -133,9 +132,9 @@ pub struct Statement<DB: sqlx::Database> {
 }
 
 impl <DB: sqlx::Database>Statement<DB> {
-    pub fn new() -> Self {
+    pub fn new(table: impl Into<String>) -> Self {
         Self {
-            table: String::new(),
+            table: table.into(),
             fields: Vec::new(),
             join: Vec::new(),
             conditions: Vec::new(),

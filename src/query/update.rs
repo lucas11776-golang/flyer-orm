@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Executor,
     Result,
@@ -5,20 +7,16 @@ use crate::{
     types::{Bindable, Connector, WhereClause}
 };
 
-pub struct Update<'e, E: Executor> {
-    executor: &'e E,
+pub struct Update<E: Executor> {
+    executor: Arc<E>,
     statement: Statement<E::DB>,
 }
 
-impl <'e, E: Executor>Update<'e, E> {
-    pub fn new(table: impl Into<String>, executor: &'e E) -> Self {
+impl <E: Executor>Update<E> {
+    pub fn new(executor: Arc<E>, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
-            statement: {
-                let mut stmt = Statement::new();
-                stmt.table = table.into();
-                stmt
-            }
+            statement: Statement::new(table),
         }
     }
 

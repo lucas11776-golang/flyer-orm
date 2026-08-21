@@ -1,91 +1,48 @@
 use anyhow::Result;
-use flyer_orm::{Executor, Query, SQLite};
-use serde::Serialize;
-use tokio::{fs::File, io::AsyncWriteExt};
-use std::sync::OnceLock;
-use flyer_orm::Entity;
+use flyer_orm::{Database, Entity, Executor, Postgres};
+use serde::{Deserialize, Serialize};
 
-// static CONNECTION: OnceLock<Postgres> = OnceLock::new();
-static CONNECTION: OnceLock<SQLite> = OnceLock::new();
-
-pub struct Database;
-
-impl Database {
-    pub async fn init() {
-        // CONNECTION
-        //     .set(Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await)
-        //     .ok()
-        //     .expect("Database already initialized!");
-        CONNECTION
-            .set(SQLite::new("database.sqlite").await)
-            .ok()
-            .expect("Database already initialized!");
-    }
-
-    pub fn query<'q>() -> Query<'q, SQLite> {
-        let db = CONNECTION
-            .get()
-            .expect("Database not initialized! Call Database::init().await first.");
-
-        Query::new(db)
-    }
+#[derive(Debug, Entity)]
+pub struct Projects {
+    pub uuid: String,
+    pub organization_uuid: String,
+    pub name: String,
+    pub description: String,
+    pub prompts: i64,
 }
 
-#[derive(Serialize, Entity, Debug)]
+#[derive(Debug, Entity, Serialize, Deserialize)]
 pub struct User {
     pub first_name: String,
     pub last_name: String,
     pub email: String,
-    pub notifications: bool,
-    // pub token: String,
 }
 
-#[derive(Serialize, Entity, Debug)]
-pub struct Prompt {
-    pub uuid: String,
-    pub question: String,
-    pub answer: String,
-    pub thinking: String,
+pub fn db<'a>() -> Database<Postgres> {
+    Database::<Postgres>::connection("default")
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    Database::init().await;
+    // Database::add("default", SQLite::new("database.sqlite").await?);
+    Database::add_connection("default", Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await?);
 
-    // let users = Database::query("users")
-    //     // .join("password_resets", "users.id", "=", "password_resets.user_id")
-    //     // .r#where("email", "=", "thembangubeni04@gmail.com")
-    //     // .or_where("email", "=", "themba@gmail.com")
-    //     .where_group(|group| {
-    //         group
-    //             .r#where("email", "=", "thembangubeni04@gmail.com");
-    //             // .or_where("email", "=", "themba@gmail.com");
-    //     })
-    //     // .group_by("password_resets.token")
-    //     .get::<User>()
-    //     .await
-    //     .unwrap();
-
-    // for user in users {
-    //     println!("\r\nUser: {:?}\r\n", user);
-    // }
-
-    let pagination = Database::query()
-        .table("prompts")
-        .paginate::<Prompt>(1, 2)
+    let user: sqlx::types::Json<User> = db()
+        .scalar_from_file("sql/users.sql")
+        .first()
         .await
         .unwrap();
 
-    let mut file = File::create("pagination.json")
+    println!("\r\n\r\nUSER JSON -> {:?}\r\n\r\n", user);
+
+    let user: User = db()
+        .query("users")
+        .first()
         .await
         .unwrap();
 
-    file
-        .write_all(serde_json::to_string_pretty(&pagination).unwrap().as_bytes())
-        .await
-        .unwrap();
+    println!("USER ENTITY -> {:?}\r\n\r\n", user);
 
-    println!("\r\nUSERS: {:?}\r\n", pagination);
-
+    
     Ok(())
 }

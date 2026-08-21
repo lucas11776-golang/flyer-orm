@@ -66,6 +66,7 @@ impl Connections {
         self.connections.remove(&connection.into());
     }
 
+    // TODO: improve caching.
     pub fn cache(&mut self, path: String) -> Result<&str> {
         if self.cache.get(&path).is_some() {
             return Ok(self.cache.get(&path).unwrap());

@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::{
-    Database, Executor, WhereClause, types::{Bindable, Connector, JoinType, Order}
-};
+use crate::{WhereClause, types::{Bindable, Connector, JoinType, Order}};
 
 pub use crate::Entity;
 

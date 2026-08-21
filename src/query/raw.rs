@@ -1,5 +1,3 @@
-use std::mem;
-
 use sqlx::IntoArguments;
 
 use crate::{Entity, Executor, Result, types::Bindable};
@@ -29,26 +27,26 @@ impl <'e, E: Executor>Raw<'e, E> {
         self
     }
 
-    pub async fn execute(mut self) -> Result<()> {
+    pub async fn execute(self) -> Result<()> {
         self
             .executor
-            .execute(String::from(self.sql?), mem::take(&mut self.arguments))
+            .execute(String::from(self.sql?), self.arguments)
             .await
             .map(|_| {})
     }
 
-    pub async fn first<O>(mut self) -> Result<O>
+    pub async fn first<O>(self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
         for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
         for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
         self.executor
-            .fetch_one(self.sql?, mem::take(&mut self.arguments))
+            .fetch_one(self.sql?, self.arguments)
             .await
     }
 
-    pub async fn all<O>(mut self) -> Result<Vec<O>>
+    pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
         for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
@@ -56,7 +54,7 @@ impl <'e, E: Executor>Raw<'e, E> {
     {
         self
             .executor
-            .fetch_all::<O>(self.sql?, mem::take(&mut self.arguments))
+            .fetch_all::<O>(self.sql?, self.arguments)
             .await
     }
 }

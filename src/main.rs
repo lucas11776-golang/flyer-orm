@@ -28,15 +28,7 @@ async fn main() -> Result<()> {
     Database::add("default", Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await);
 
     let user: sqlx::types::Json<User> = db()
-        .scaler("
-            SELECT
-                jsonb_build_object(
-                    'first_name', users.first_name,
-                    'last_name', users.last_name,
-                    'email', users.email
-                )
-            FROM users
-        ")
+        .scaler_from_file("sql/users.sql")
         .first()
         .await
         .unwrap();

@@ -18,14 +18,14 @@ pub struct User {
     pub email: String,
 }
 
-pub fn db<'q>() -> Database<Postgres> {
+pub fn db() -> Database<Postgres> {
     Database::<Postgres>::connection("default")
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Database::add("default", SQLite::new("database.sqlite").await);
-    Database::add("default", Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await);
+    // Database::add("default", SQLite::new("database.sqlite").await?);
+    Database::add_connection("default", Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await?);
 
     let user: sqlx::types::Json<User> = db()
         .scalar_from_file("sql/users.sql")

@@ -1,8 +1,6 @@
-use std::any::Any;
-use std::collections::HashMap;
-use std::fs;
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::{Arc, LazyLock};
 
+use crate::connections::Connections;
 use crate::query::scalar::Scalar;
 use crate::query::{delete::Delete, insert::Insert, query::Query, raw::Raw, update::Update};
 use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
@@ -27,59 +25,13 @@ pub mod types;
 pub use anyhow::Result;
 pub use sqlx;
 
+mod connections;
+
 pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
 
 static CONNECTIONS: LazyLock<Connections> = LazyLock::new(Connections::new);
-
-pub(crate) struct Connections {
-    cache: RwLock<HashMap<String, &'static str>>,
-    connections: RwLock<HashMap<String, Arc<dyn Any + Send + Sync>>>,
-}
-
-impl Connections {
-    pub fn new() -> Self {
-        Self {
-            cache: RwLock::new(HashMap::new()),
-            connections: RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub fn add<E: Executor + 'static>(&self, connection: impl Into<String>, executor: E) {
-        self.connections
-            .write()
-            .unwrap()
-            .insert(connection.into(), Arc::new(executor));
-    }
-
-    pub fn get<E: Executor + 'static>(&self, connection: &str) -> Arc<E> {
-        self.connections
-            .read()
-            .unwrap()
-            .get(connection)
-            .cloned()
-            .and_then(|any| any.downcast::<E>().ok())
-            .unwrap_or_else(|| panic!("Connection '{connection}' not found or type mismatch"))
-    }
-
-    pub fn remove(&self, connection: &str) {
-        self.connections.write().unwrap().remove(connection);
-    }
-
-    pub fn cache(&self, path: &str) -> Result<&'static str> {
-        if let Some(&cached) = self.cache.read().unwrap().get(path) {
-            return Ok(cached);
-        }
-
-        let content = fs::read_to_string(path)?;
-        let static_str: &'static str = Box::leak(content.into_boxed_str());
-
-        let mut cache = self.cache.write().unwrap();
-
-        Ok(*cache.entry(path.to_string()).or_insert(static_str))
-    }
-}
 
 pub struct Database<E: Executor + 'static> {
     executor: Arc<E>,
@@ -92,7 +44,7 @@ impl<E: Executor + 'static> Database<E> {
         }
     }
 
-    pub fn add(connection: impl Into<String>, executor: E) {
+    pub fn add_connection(connection: impl Into<String>, executor: E) {
         CONNECTIONS.add(connection, executor);
     }
 

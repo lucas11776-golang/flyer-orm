@@ -46,12 +46,14 @@ impl SQLite {
 impl Executor for SQLite {
     type DB = sqlx::Sqlite;
 
-    async fn new(url: impl Into<String>) -> Self {
-        Self {
-            pool: SqlitePool::connect(&url.into())
-                .await
-                .unwrap(),
-        }
+    async fn new(url: &str) -> Result<Self>
+    where
+        Self: Sized
+    {
+        SqlitePool::connect(url)
+            .await
+            .map(|pool| Self { pool })
+            .map_err(Into::into)
     }
 
     fn from(pool: sqlx::Pool<Self::DB>) -> Self {

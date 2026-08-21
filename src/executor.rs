@@ -12,7 +12,9 @@ use crate::{
 pub trait Executor: Send + Sync {
     type DB: Database;
 
-    async fn new(url: impl Into<String>) -> Self;
+    async fn new(url: &str) -> Result<Self>
+    where
+        Self: Sized;
 
     fn from(pool: Pool<Self::DB>) -> Self;
 

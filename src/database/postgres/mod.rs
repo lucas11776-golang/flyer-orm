@@ -38,21 +38,17 @@ pub struct Postgres {
     pool: PgPool,
 }
 
-impl Postgres {
-    pub fn pool(&self) -> &PgPool {
-        &self.pool
-    }
-}
-
 impl Executor for Postgres {
     type DB = sqlx::Postgres;
 
-    async fn new(url: impl Into<String>) -> Self {
-        Self {
-            pool: PgPool::connect(&url.into())
-                .await
-                .unwrap(),
-        }
+    async fn new(url: &str) -> Result<Self>
+    where
+        Self: Sized
+    {
+        PgPool::connect(url)
+            .await
+            .map(|pool| Self { pool })
+            .map_err(Into::into)
     }
 
     fn from(pool: sqlx::Pool<Self::DB>) -> Self {
@@ -78,7 +74,7 @@ impl Executor for Postgres {
             .map(|r| PostgresQueryResult::new(r.rows_affected(), 0))
             .map_err(Into::into)
     }
-    
+
     async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 

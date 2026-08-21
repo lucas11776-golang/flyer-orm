@@ -46,12 +46,14 @@ impl MySQL {
 impl Executor for MySQL {
     type DB = sqlx::MySql;
 
-    async fn new(url: impl Into<String>) -> Self {
-        Self {
-            pool: MySqlPool::connect(&url.into())
-                .await
-                .unwrap(),
-        }
+    async fn new(url: &str) -> Result<Self>
+    where
+        Self: Sized
+    {
+        MySqlPool::connect(url)
+            .await
+            .map(|pool| Self { pool })
+            .map_err(Into::into)
     }
 
     fn from(pool: sqlx::Pool<Self::DB>) -> Self {

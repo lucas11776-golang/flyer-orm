@@ -1,6 +1,7 @@
 use sqlx::{ColumnIndex, IntoArguments};
 use sqlx::{Database, Pool};
 
+use crate::types::Bindable;
 use crate::{Entity, Result};
 
 use crate::{
@@ -24,33 +25,44 @@ pub trait Executor: Send + Sync {
 
     async fn execute<'a>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<impl QueryResult>;
 
-    async fn fetch_one<'a, O>(
-        &'a self,
-        sql: &'a str,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
+    // TODO: move to utils
+    fn to_args<'a>(args: Vec<Box<dyn Bindable<Self::DB>>>) -> <Self::DB as sqlx::Database>::Arguments<'a> {
+        let mut arguments= Default::default();
+
+        for arg in args {
+            arg.bind_to(&mut arguments).unwrap();
+        }
+
+        return arguments;
+    }
+
+    async fn fetch_one<O>(
+        &self,
+        sql: String,
+        arguments: Vec<Box<dyn Bindable<Self::DB>>>,
     ) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for <'a> <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
         for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
     {
-        sqlx::query_as_with::<Self::DB, O, _>(sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, Self::to_args(arguments))
             .fetch_one(self.pool())
             .await
             .map_err(Into::into)
     }
 
-    async fn fetch_all<'a, O>(
-        &'a self,
-        sql: &'a str,
-        arguments: <Self::DB as sqlx::Database>::Arguments<'a>,
+    async fn fetch_all<O>(
+        &self,
+        sql: String,
+        arguments: Vec<Box<dyn Bindable<Self::DB>>>,
     ) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-        <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
+        for <'a> <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
         for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
     {
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, Self::to_args(arguments))
             .fetch_all(self.pool())
             .await
             .map_err(Into::into)

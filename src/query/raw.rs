@@ -1,15 +1,17 @@
+use std::sync::Arc;
+
 use sqlx::IntoArguments;
 
 use crate::{types::Bindable, Entity, Executor, Result};
 
-pub struct Raw<'e, E: Executor> {
-    sql: Result<&'e str>,
-    arguments: <E::DB as sqlx::Database>::Arguments<'e>,
-    executor: &'e E,
+pub struct Raw<E: Executor> {
+    sql: Result<String>,
+    arguments: Vec<Box<dyn Bindable<E::DB>>>,
+    executor: Arc<E>,
 }
 
-impl <'e, E: Executor>Raw<'e, E> {
-    pub fn new(executor: &'e E, sql: Result<&'e str>) -> Self {
+impl <E: Executor>Raw<E> {
+    pub fn new(executor: Arc<E>, sql: Result<String>) -> Self {
         Self {
             sql: sql,
             arguments: Default::default(),
@@ -18,18 +20,16 @@ impl <'e, E: Executor>Raw<'e, E> {
     }
 
     #[inline]
-    pub fn bind<V>(&'e mut self, value: V) -> &'e mut Self
+    pub fn bind<V>(mut self, value: V) -> Self
     where
         V: Bindable<E::DB>,
     {
-        value
-            .bind_to(&mut self.arguments)
-            .unwrap();
+        self.arguments.push(Box::new(value));
         self
     }
 }
 
-impl <'e, E: Executor>Raw<'e, E>
+impl <E: Executor>Raw<E>
 where
     for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
     for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
@@ -37,9 +37,19 @@ where
     pub async fn execute(self) -> Result<()> {
         self
             .executor
-            .execute(String::from(self.sql?), self.arguments)
+            .execute(String::from(self.sql?), Default::default())
             .await
             .map(|_| ())
+    }
+
+    fn get_arguments<'a>(args: Vec<Box<dyn Bindable<E::DB>>>) -> <E::DB as sqlx::Database>::Arguments<'a> {
+        let mut arguments= Default::default();
+
+        for arg in args {
+            arg.bind_to(&mut arguments).unwrap();
+        }
+
+        return arguments;
     }
 
     pub async fn first<O>(self) -> Result<O>
@@ -58,7 +68,7 @@ where
     {
         self
             .executor
-            .fetch_all::<O>(self.sql?, self.arguments)
+            .fetch_all::<O>(self.sql?, Default::default())
             .await
     }
 }

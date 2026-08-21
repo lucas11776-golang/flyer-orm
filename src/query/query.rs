@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Entity,
     Executor,
@@ -5,20 +7,20 @@ use crate::{
     query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement, WhereGroup},
     types::{Bindable, Connector, JoinType, Order, WhereClause}
 };
-pub struct Query<'a, E: Executor> {
-    executor: &'a E,
+pub struct Query<E: Executor> {
+    executor: Arc<E>,
     statement: Statement<E::DB>,
 }
 
-impl <'a, E: Executor>Query<'a, E> {
-    pub fn new(executor: &'a E, table: impl Into<String>) -> Self {
+impl <E: Executor>Query<E> {
+    pub fn new(executor: Arc<E>, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
             statement: Statement::new(table),
         }
     }
 
-    pub fn select<I, S>(&'a mut self, columns: I) -> &'a mut Self
+    pub fn select<I, S>(mut self, columns: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
@@ -32,13 +34,13 @@ impl <'a, E: Executor>Query<'a, E> {
     }
 
     fn join_push(
-        &'a mut self,
+        mut self,
         join_type: JoinType,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.statement.join.push(Join {
             table: table.into(),
             column: column.into(),
@@ -50,52 +52,52 @@ impl <'a, E: Executor>Query<'a, E> {
     }
 
     pub fn join(
-        &'a mut self,
+        self,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.join_push(JoinType::Join, table, column, operator, column_table)
     }
 
     pub fn join_right(
-        &'a mut self,
+        self,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.join_push(JoinType::RightJoin, table, column, operator, column_table)
     }
 
     pub fn join_left(
-        &'a mut self,
+        self,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.join_push(JoinType::LeftJoin, table, column, operator, column_table)
     }
 
     pub fn join_inner(
-        &'a mut self,
+        self,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.join_push(JoinType::InnerJoin, table, column, operator, column_table)
     }
 
     pub fn join_full_outer(
-        &'a mut self,
+        self,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.join_push(
             JoinType::FullOuterJoin,
             table,
@@ -106,21 +108,21 @@ impl <'a, E: Executor>Query<'a, E> {
     }
 
     pub fn join_cross(
-        &'a mut self,
+        self,
         table: impl Into<String>,
         column: impl Into<String>,
         operator: impl Into<String>,
         column_table: impl Into<String>,
-    ) -> &'a mut Self {
+    ) -> Self {
         self.join_push(JoinType::CrossJoin, table, column, operator, column_table)
     }
 
     pub fn r#where<V>(
-        &'a mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -135,11 +137,11 @@ impl <'a, E: Executor>Query<'a, E> {
 
     #[inline]
     pub fn and_where<V>(
-        &'a mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -147,11 +149,11 @@ impl <'a, E: Executor>Query<'a, E> {
     }
 
     pub fn or_where<V>(
-        &'a mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -164,7 +166,7 @@ impl <'a, E: Executor>Query<'a, E> {
         self
     }
 
-    pub fn where_group<F>(&'a mut self, callback: F) -> &'a mut Self
+    pub fn where_group<F>(mut self, callback: F) -> Self
     where
         F: FnOnce(&mut WhereGroup<E::DB>),
     {
@@ -179,18 +181,18 @@ impl <'a, E: Executor>Query<'a, E> {
         self
     }
 
-    pub fn group_by(&'a mut self, column: impl Into<String>) -> &'a mut Self {
+    pub fn group_by(mut self, column: impl Into<String>) -> Self {
         self.statement.group_by = Some(column.into());
         self
     }
 
     fn having_push<V>(
-        &'a mut self,
+        mut self,
         connector: Connector,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -204,11 +206,11 @@ impl <'a, E: Executor>Query<'a, E> {
     }
 
     pub fn having<V>(
-        &'a mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -217,11 +219,11 @@ impl <'a, E: Executor>Query<'a, E> {
 
     #[inline]
     pub fn and_having<V>(
-        &'a mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -229,25 +231,25 @@ impl <'a, E: Executor>Query<'a, E> {
     }
 
     pub fn or_having<V>(
-        &'a mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
         self.having_push(Connector::Or, column, operator, value)
     }
 
-    pub fn order_by(&'a mut self, column: impl Into<String>, order: Order) -> &'a mut Self {
+    pub fn order_by(mut self, column: impl Into<String>, order: Order) -> Self {
         self.statement
             .order_by
             .push(OrderValue::new(column.into(), order));
         self
     }
 
-    pub fn limit(&'a mut self, limit: i64) -> &'a mut Self
+    pub fn limit(mut self, limit: i64) -> Self
     where
         for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
     {
@@ -255,7 +257,7 @@ impl <'a, E: Executor>Query<'a, E> {
         self
     }
 
-    pub fn offset(&'a mut self, offset: i64) -> &'a mut Self
+    pub fn offset(mut self, offset: i64) -> Self
     where
         for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
     {

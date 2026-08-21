@@ -151,7 +151,9 @@ impl Executor for SQLite {
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        self.fetch_one(&sql, arguments).await
+        // self.fetch_one(&sql, arguments).await
+
+        todo!()
     }
 
     async fn all<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<Vec<O>>
@@ -160,7 +162,9 @@ impl Executor for SQLite {
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        self.fetch_all(&sql, arguments).await
+        // self.fetch_all(sql, arguments).await
+
+        todo!()
     }
 
     async fn paginate<'q, O>(&'q self, statement: &'q Statement<Self::DB>) -> Result<Pagination<O>>

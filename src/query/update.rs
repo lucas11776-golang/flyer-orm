@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Executor,
     Result,
@@ -5,13 +7,13 @@ use crate::{
     types::{Bindable, Connector, WhereClause}
 };
 
-pub struct Update<'e, E: Executor> {
-    executor: &'e E,
+pub struct Update<E: Executor> {
+    executor: Arc<E>,
     statement: Statement<E::DB>,
 }
 
-impl <'e, E: Executor>Update<'e, E> {
-    pub fn new(executor: &'e E, table: impl Into<String>) -> Self {
+impl <E: Executor>Update<E> {
+    pub fn new(executor: Arc<E>, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
             statement: Statement::new(table),
@@ -19,11 +21,11 @@ impl <'e, E: Executor>Update<'e, E> {
     }
 
     pub fn r#where<V>(
-        &'e mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'e mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -38,11 +40,11 @@ impl <'e, E: Executor>Update<'e, E> {
 
     #[inline]
     pub fn and_where<V>(
-        &'e mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'e mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -50,11 +52,11 @@ impl <'e, E: Executor>Update<'e, E> {
     }
 
     pub fn or_where<V>(
-        &'e mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'e mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -67,7 +69,7 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub fn where_group<F>(&'e mut self, callback: F) -> &'e mut Self
+    pub fn where_group<F>(mut self, callback: F) -> Self
     where
         F: FnOnce(&mut WhereGroup<E::DB>),
     {
@@ -82,7 +84,7 @@ impl <'e, E: Executor>Update<'e, E> {
         self
     }
 
-    pub fn bind<V>(&'e mut self, column: impl Into<String>,  value: V) -> &'e mut Self
+    pub fn bind<V>(mut self, column: impl Into<String>,  value: V) -> Self
     where
         V: Bindable<E::DB>,
     {

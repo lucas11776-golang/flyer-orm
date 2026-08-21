@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use crate::connections::Connections;
 use crate::query::scalar::Scalar;
@@ -33,11 +33,11 @@ pub use flyer_orm_derive::Entity;
 
 static mut CONNECTIONS: LazyLock<Connections> = LazyLock::new(Connections::new);
 
-pub struct Database<'q, E: Executor + 'static> {
-    executor: &'q E,
+pub struct Database<E: Executor + 'static> {
+    executor: Arc<E>,
 }
 
-impl <'q, E: Executor + 'static>Database<'q, E> {
+impl <E: Executor + 'static>Database<E> {
     #[allow(static_mut_refs)]
     pub fn connection(connection: &str) -> Self {
        unsafe {
@@ -62,9 +62,9 @@ impl <'q, E: Executor + 'static>Database<'q, E> {
     }
 
     #[allow(static_mut_refs)]
-    pub fn cache(path: &str) -> Result<&'static str> {
+    pub fn cache(path: impl Into<String>) -> Result<String> {
         unsafe {
-            CONNECTIONS.cache(path)
+            CONNECTIONS.cache(&path.into())
         }
     }
 
@@ -72,39 +72,39 @@ impl <'q, E: Executor + 'static>Database<'q, E> {
         self.executor.pool()
     }
 
-    pub fn raw(&self, sql: &'q str) -> Raw<'q, E> {
-        Raw::new(self.executor, Ok(sql))
+    pub fn raw(&self, sql: impl Into<String>) -> Raw<E> {
+        Raw::new(self.executor.clone(), Ok(sql.into()))
     }
 
-    pub fn raw_from_file(&self, path: &str) -> Raw<'q, E> {
-        Raw::new(self.executor, Self::cache(path))
+    pub fn raw_from_file(&self, path: impl Into<String>) -> Raw<E> {
+        Raw::new(self.executor.clone(), Self::cache(path))
     }
 
-    pub fn scalar(&self, sql: &'q str) -> Scalar<'q, E> {
-        Scalar::new(self.executor, Ok(sql))
+    pub fn scalar(&self, sql: impl Into<String>) -> Scalar<E> {
+        Scalar::new(self.executor.clone(), Ok(sql.into()))
     }
 
-    pub fn scalar_from_file(&self, path: &str) -> Scalar<'q, E> {
-        Scalar::new(self.executor, Self::cache(path))
+    pub fn scalar_from_file(&self, path: impl Into<String>) -> Scalar<E> {
+        Scalar::new(self.executor.clone(), Self::cache(path))
     }
 
-    pub fn query(&self, table: &'q str) -> Query<'q, E> {
-        Query::new(self.executor, table)
+    pub fn query(&self, table: impl Into<String>) -> Query<E> {
+        Query::new(self.executor.clone(), table)
     }
 
-    pub fn insert(&self, table: &'q str) -> Insert<'q, E> {
-        Insert::new(self.executor, table)
+    pub fn insert(&self, table: impl Into<String>) -> Insert<E> {
+        Insert::new(self.executor.clone(), table)
     }
 
-    pub fn update(&self, table: &'q str) -> Update<'q, E> {
-        Update::new(self.executor, table)
+    pub fn update(&self, table: impl Into<String>) -> Update<E> {
+        Update::new(self.executor.clone(), table)
     }
 
-    pub fn delete(&self, table: &'q str) -> Delete<'q, E> {
-        Delete::new(self.executor, table)
+    pub fn delete(&self, table: impl Into<String>) -> Delete<E> {
+        Delete::new(self.executor.clone(), table)
     }
 
-    pub fn query_builder(&self, sql: &'q str) -> QueryBuilder<'q, E::DB> {
+    pub fn query_builder<'q>(&self, sql: impl Into<String>) -> QueryBuilder<'q, E::DB> {
         QueryBuilder::new(sql)
     }
 }

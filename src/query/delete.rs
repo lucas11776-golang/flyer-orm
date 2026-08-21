@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     Executor,
     Result,
@@ -5,13 +7,13 @@ use crate::{
     types::{Bindable, Connector, WhereClause}
 };
 
-pub struct Delete<'a, E: Executor> {
-    executor: &'a E,
+pub struct Delete<E: Executor> {
+    executor: Arc<E>,
     statement: Statement<E::DB>,
 }
 
-impl <'a, E: Executor>Delete<'a, E> {
-    pub fn new(executor: &'a E, table: impl Into<String>) -> Self {
+impl <E: Executor>Delete<E> {
+    pub fn new(executor: Arc<E>, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
             statement: Statement::new(table),
@@ -19,11 +21,11 @@ impl <'a, E: Executor>Delete<'a, E> {
     }
 
     pub fn r#where<V>(
-        &'a mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -38,11 +40,11 @@ impl <'a, E: Executor>Delete<'a, E> {
 
     #[inline]
     pub fn and_where<V>(
-        &'a mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -50,11 +52,11 @@ impl <'a, E: Executor>Delete<'a, E> {
     }
 
     pub fn or_where<V>(
-        &'a mut self,
+        mut self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
-    ) -> &'a mut Self
+    ) -> Self
     where
         V: Bindable<E::DB>,
     {
@@ -67,7 +69,7 @@ impl <'a, E: Executor>Delete<'a, E> {
         self
     }
 
-    pub fn where_group<F>(&'a mut self, callback: F) -> &'a mut Self
+    pub fn where_group<F>(mut self, callback: F) -> Self
     where
         F: FnOnce(&mut WhereGroup<E::DB>),
     {

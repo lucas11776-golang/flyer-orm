@@ -4,11 +4,11 @@ use flyer_orm::{Database, Executor, MySQL, Postgres, SQLite, Result};
 /// parameter if you have multiple database connections such as order, payments etc databases.
 /// 
 /// ```rust,no_run
-/// pub db<'a>(connection: &str) -> Database<'a, Postgres> {
+/// pub db(connection: &str) -> Database<Postgres> {
 ///     Database::<Postgres>::get(connection)
 /// } 
 /// ```
-pub fn db<'a>() -> Database<'a, Postgres> {
+pub fn db() -> Database<Postgres> {
     Database::<Postgres>::connection("SQLITE")
 }
 

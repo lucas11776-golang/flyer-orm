@@ -1,19 +1,21 @@
+use std::sync::Arc;
+
 use crate::{Entity, Executor, Result, query::Statement, types::Bindable};
 
-pub struct Insert<'e, E: Executor> {
-    executor: &'e E,
+pub struct Insert<E: Executor> {
+    executor: Arc<E>,
     statement: Statement<E::DB>,
 }
 
-impl <'e, E: Executor>Insert<'e, E> {
-    pub fn new(executor: &'e E, table: impl Into<String>) -> Self {
+impl <E: Executor>Insert<E> {
+    pub fn new(executor: Arc<E>, table: impl Into<String>) -> Self {
         Self {
             executor: executor,
             statement: Statement::new(table),
         }
     }
 
-    pub fn bind<V>(&'e mut self, column: impl Into<String>,  value: V) -> &'e mut Self
+    pub fn bind<V>(mut self, column: impl Into<String>,  value: V) -> Self
     where
         V: Bindable<E::DB>,
     {

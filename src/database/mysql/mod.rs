@@ -151,9 +151,11 @@ impl Executor for MySQL {
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        self
-            .fetch_one(&sql, arguments)
-            .await
+        // self
+        //     .fetch_one(sql, arguments)
+        //     .await
+
+        todo!()        
     }
 
     async fn all<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
@@ -162,9 +164,11 @@ impl Executor for MySQL {
     {
         let (sql, arguments) = QueryBuilder::new(false).query(statement);
 
-        self
-            .fetch_all(&sql, arguments)
-            .await
+        // self
+        //     .fetch_all(sql, arguments)
+        //     .await
+
+        todo!()
     }
 
     async fn paginate<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>

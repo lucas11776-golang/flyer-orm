@@ -1,8 +1,7 @@
 use sqlx::{ColumnIndex, IntoArguments};
 use sqlx::{Database, Pool};
 
-use crate::Entity;
-use crate::Result;
+use crate::{Entity, Result};
 
 use crate::{
     query::{Pagination, Statement},

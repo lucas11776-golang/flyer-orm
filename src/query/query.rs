@@ -18,11 +18,16 @@ impl <'a, E: Executor>Query<'a, E> {
         }
     }
 
-    pub fn select(mut self, columns: Vec<impl Into<String>>) -> Self {
-        // TODO: use iter.map
-        for c in columns {
-            self.statement.fields.push(c.into());
-        }
+    pub fn select<I, S>(mut self, columns: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self
+            .statement
+            .fields
+            .extend(columns.into_iter()
+            .map(Into::into));
         self
     }
 
@@ -291,20 +296,19 @@ impl <'a, E: Executor>Query<'a, E> {
             .await
             .map(|c| c > 0)
     }
-    
-    // TODO: refactor this to be simple.
+
     pub async fn paginate<O>(&mut self, limit: i64, page: i64) -> Result<Pagination<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
         for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
     {
-        let limit_stable = if limit < 0 { 0 } else { limit };
-        let page_stable = if page < 0 { 1 } else { page };
-        let offset: i64 = limit_stable * page_stable - limit_stable;
+        let limit = limit.max(0);
+        let page = page.max(1);
+        let offset = (page - 1).saturating_mul(limit);
 
-        self.statement.limit = Some(Limit::new(limit_stable));
+        self.statement.limit = Some(Limit::new(limit));
         self.statement.offset = Some(Offset::new(offset));
-        self.statement.page = Some(page); // Should get it using (limit and offset)
+        self.statement.page = Some(page);
 
         self
             .executor

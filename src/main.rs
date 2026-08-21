@@ -18,7 +18,7 @@ pub struct User {
     pub email: String,
 }
 
-pub fn db<'q>() -> Database<'q, Postgres> {
+pub fn db<'q>() -> Database<Postgres> {
     Database::<Postgres>::connection("default")
 }
 
@@ -28,7 +28,7 @@ async fn main() -> Result<()> {
     Database::add("default", Postgres::new("postgresql://postgres:test123@localhost:5111/lucas11776").await);
 
     let user: sqlx::types::Json<User> = db()
-        .scaler_from_file("sql/users.sql")
+        .scalar_from_file("sql/users.sql")
         .first()
         .await
         .unwrap();

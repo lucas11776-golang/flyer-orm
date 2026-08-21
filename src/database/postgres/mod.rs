@@ -78,10 +78,7 @@ impl Executor for Postgres {
             .map(|r| PostgresQueryResult::new(r.rows_affected(), 0))
             .map_err(Into::into)
     }
-
-
-
-        
+    
     async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 

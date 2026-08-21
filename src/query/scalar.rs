@@ -1,7 +1,8 @@
-use sqlx::{ColumnIndex, Database, FromRow, IntoArguments, Pool};
-use crate::{Entity, Executor, Result, types::Bindable};
+use sqlx::{ColumnIndex, Database, IntoArguments, Pool};
 
-pub struct Scalar<'q, E: Executor> 
+use crate::{types::Bindable, Executor, Result};
+
+pub struct Scalar<'q, E: Executor>
 where
     E::DB: Database,
 {
@@ -10,15 +11,16 @@ where
     executor: &'q E,
 }
 
-impl<'q, E: Executor> Scalar<'q, E> 
+impl<'q, E: Executor> Scalar<'q, E>
 where
     E::DB: Database,
 {
+    #[inline]
     pub fn new(executor: &'q E, sql: Result<&'q str>) -> Self {
         Self {
-            sql,
+            sql: sql,
             arguments: Default::default(),
-            executor,
+            executor: executor,
         }
     }
 
@@ -43,8 +45,7 @@ where
 {
     pub async fn first<O>(self) -> Result<O>
     where
-        O: Send + Unpin,
-        O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
+        O: Send + Unpin + sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
     {
         sqlx::query_scalar_with::<E::DB, O, _>(self.sql?, self.arguments)
             .fetch_one(self.executor.pool())
@@ -54,10 +55,7 @@ where
 
     pub async fn first_optional<O>(self) -> Result<Option<O>>
     where
-        O: Send + Unpin,
-        O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
-        (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
-        O: Entity + for<'r> FromRow<'r, <E::DB as Database>::Row> + Send + Unpin,
+        O: Send + Unpin + sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
     {
         sqlx::query_scalar_with::<E::DB, O, _>(self.sql?, self.arguments)
             .fetch_optional(self.executor.pool())
@@ -67,9 +65,7 @@ where
 
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
-        O: Send + Unpin,
-        O: sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
-        (O,): for<'r> FromRow<'r, <E::DB as Database>::Row>,
+        O: Send + Unpin + sqlx::Type<E::DB> + for<'r> sqlx::Decode<'r, E::DB>,
     {
         sqlx::query_scalar_with::<E::DB, O, _>(self.sql?, self.arguments)
             .fetch_all(self.executor.pool())

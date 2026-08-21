@@ -1,6 +1,6 @@
 use sqlx::IntoArguments;
 
-use crate::{Entity, Executor, Result, types::Bindable};
+use crate::{types::Bindable, Entity, Executor, Result};
 
 pub struct Raw<'e, E: Executor> {
     sql: Result<&'e str>,
@@ -10,13 +10,14 @@ pub struct Raw<'e, E: Executor> {
 
 impl <'e, E: Executor>Raw<'e, E> {
     pub fn new(executor: &'e E, sql: Result<&'e str>) -> Self {
-        return Self {
-            sql: sql.into(),
+        Self {
+            sql: sql,
             arguments: Default::default(),
             executor: executor,
-        };
+        }
     }
 
+    #[inline]
     pub fn bind<V>(mut self, value: V) -> Self
     where
         V: Bindable<E::DB>,
@@ -26,22 +27,27 @@ impl <'e, E: Executor>Raw<'e, E> {
             .unwrap();
         self
     }
+}
 
+impl <'e, E: Executor>Raw<'e, E>
+where
+    for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
+    for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
+{
     pub async fn execute(self) -> Result<()> {
         self
             .executor
             .execute(String::from(self.sql?), self.arguments)
             .await
-            .map(|_| {})
+            .map(|_| ())
     }
 
     pub async fn first<O>(self) -> Result<O>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
-        for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
-        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
-        self.executor
+        self
+            .executor
             .fetch_one(self.sql?, self.arguments)
             .await
     }
@@ -49,8 +55,6 @@ impl <'e, E: Executor>Raw<'e, E> {
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
-        for<'a> <E::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, E::DB>,
-        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
         self
             .executor

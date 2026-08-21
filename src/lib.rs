@@ -1,12 +1,10 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs;
-use std::io::Read;
-use std::sync::Arc;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, RwLock};
 
 use crate::query::scalar::Scalar;
-use crate::query::{delete::Delete, insert::Insert, raw::Raw, update::Update, query::Query};
+use crate::query::{delete::Delete, insert::Insert, query::Query, raw::Raw, update::Update};
 use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
 use crate::types::{Bindable, QueryResult, WhereClause};
 
@@ -22,9 +20,9 @@ use sqlx::QueryBuilder;
 pub use sqlx::SqlitePool;
 
 pub mod database;
+pub mod executor;
 pub mod query;
 pub mod types;
-pub mod executor;
 
 pub use anyhow::Result;
 pub use sqlx;
@@ -33,131 +31,116 @@ pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
 
-static mut CONNECTIONS: LazyLock<Connections> = LazyLock::new(|| Connections::new());
+static CONNECTIONS: LazyLock<Connections> = LazyLock::new(Connections::new);
 
 pub(crate) struct Connections {
-    cache: HashMap<String, String>,
-    connections: HashMap<String, Arc<Box<dyn Any>>>
+    cache: RwLock<HashMap<String, &'static str>>,
+    connections: RwLock<HashMap<String, Arc<dyn Any + Send + Sync>>>,
 }
 
 impl Connections {
     pub fn new() -> Self {
         Self {
-            cache: Default::default(),
-            connections: Default::default(),
+            cache: RwLock::new(HashMap::new()),
+            connections: RwLock::new(HashMap::new()),
         }
     }
 
-    pub fn add<E: Executor + 'static>(&mut self, connection: impl Into<String>, executor: E) {
-        self.connections.insert(connection.into(), Arc::new(Box::new(executor)));
-    }
-
-    #[allow(static_mut_refs)]
-    pub fn get<'q, E: Executor + 'static>(&'q mut self, connection: impl Into<String>) -> &'q E {
-        self
-            .connections
-            .get(&connection.into())
+    pub fn add<E: Executor + 'static>(&self, connection: impl Into<String>, executor: E) {
+        self.connections
+            .write()
             .unwrap()
-            .downcast_ref::<E>()
+            .insert(connection.into(), Arc::new(executor));
+    }
+
+    pub fn get<E: Executor + 'static>(&self, connection: &str) -> Arc<E> {
+        self.connections
+            .read()
             .unwrap()
+            .get(connection)
+            .cloned()
+            .and_then(|any| any.downcast::<E>().ok())
+            .unwrap_or_else(|| panic!("Connection '{connection}' not found or type mismatch"))
     }
 
-    pub fn remove(&mut self, connection: impl Into<String>) {
-        self.connections.remove(&connection.into());
+    pub fn remove(&self, connection: &str) {
+        self.connections.write().unwrap().remove(connection);
     }
 
-    // TODO: improve caching.
-    pub fn cache(&mut self, path: String) -> Result<&str> {
-        if self.cache.get(&path).is_some() {
-            return Ok(self.cache.get(&path).unwrap());
+    pub fn cache(&self, path: &str) -> Result<&'static str> {
+        if let Some(&cached) = self.cache.read().unwrap().get(path) {
+            return Ok(cached);
         }
 
-        let file = fs::File::open(&path);
+        let content = fs::read_to_string(path)?;
+        let static_str: &'static str = Box::leak(content.into_boxed_str());
 
-        if let Err(err) = file {
-            return Err(err.into());
-        }
+        let mut cache = self.cache.write().unwrap();
 
-        let mut cache = String::new();
-
-        if let Err(err) = file.unwrap().read_to_string(&mut cache) {
-            return Err(err.into());
-        }
-
-        self.cache.insert(path.clone(), cache.clone());
-
-        Ok(self.cache.get(&path).unwrap())
+        Ok(*cache.entry(path.to_string()).or_insert(static_str))
     }
 }
 
-pub struct Database<'q, E: Executor + 'static> {
-    executor: &'q E,
+pub struct Database<E: Executor + 'static> {
+    executor: Arc<E>,
 }
 
-impl <'q, E: Executor>Database<'q, E> {
-    #[allow(static_mut_refs)]
-    pub fn connection(connection: impl Into<String>) -> Self {
-        unsafe {
-            Self {
-                executor: CONNECTIONS.get(connection)
-            }
+impl<E: Executor + 'static> Database<E> {
+    pub fn connection(connection: &str) -> Self {
+        Self {
+            executor: CONNECTIONS.get::<E>(connection),
         }
     }
 
-    #[allow(static_mut_refs)]
     pub fn add(connection: impl Into<String>, executor: E) {
-        unsafe { CONNECTIONS.add(connection.into(), executor) }
-    }
-    
-    #[allow(static_mut_refs)]
-    pub fn remove(connection: impl Into<String>) {
-        unsafe { CONNECTIONS.remove(&connection.into()) }
-    }
-        
-    #[allow(static_mut_refs)]
-    pub(crate) fn cache<'a>(path: impl Into<String>) -> Result<&'a str> {
-        unsafe { CONNECTIONS.cache(path.into()) }
+        CONNECTIONS.add(connection, executor);
     }
 
-    pub fn pool(&self) -> &'q Pool<E::DB> {
-        self
-            .executor
-            .pool()
+    pub fn remove(connection: &str) {
+        CONNECTIONS.remove(connection);
     }
 
-    pub fn raw(self, sql: &'q str) -> Raw<'q, E> {
-        Raw::new(self.executor, Ok(sql))
+    pub fn cache(path: &str) -> Result<&'static str> {
+        CONNECTIONS.cache(path)
     }
 
-    pub fn raw_from_file(self, path: impl Into<String>) -> Raw<'q, E> {
-        Raw::new(self.executor, Database::<E>::cache(path))
+    pub fn pool(&self) -> &Pool<E::DB> {
+        self.executor.pool()
     }
 
-    pub fn scaler(self, sql: &'q str) -> Scalar<'q, E> {
-        Scalar::new(self.executor, Ok(sql))
+    pub fn raw<'q>(&'q self, sql: &'q str) -> Raw<'q, E> {
+        Raw::new(self.executor.as_ref(), Ok(sql))
     }
 
-    pub fn scaler_from_file(self, path: &'q str) -> Scalar<'q, E> {
-        Scalar::new(self.executor, Database::<E>::cache(path))
+    pub fn raw_from_file<'q>(&'q self, path: &str) -> Raw<'q, E> {
+        Raw::new(self.executor.as_ref(), Self::cache(path))
     }
 
-    pub fn query(self, table: &'q str) -> Query<'q, E> {
-        Query::new(self.executor, table)
+    pub fn scalar<'q>(&'q self, sql: &'q str) -> Scalar<'q, E> {
+        Scalar::new(self.executor.as_ref(), Ok(sql))
     }
 
-    pub fn insert(self, table: &'q str) -> Insert<'q, E> {
-        Insert::new(self.executor, table)
+    pub fn scalar_from_file<'q>(&'q self, path: &str) -> Scalar<'q, E> {
+        Scalar::new(self.executor.as_ref(), Self::cache(path))
     }
 
-    pub fn update(self, table: &'q str) -> Update<'q, E> {
-        Update::new(self.executor, table)
+    pub fn query<'q>(&'q self, table: &'q str) -> Query<'q, E> {
+        Query::new(self.executor.as_ref(), table)
     }
 
-    pub fn delete(self, table: &'q str) -> Delete<'q, E> {
-        Delete::new(self.executor, table)
+    pub fn insert<'q>(&'q self, table: &'q str) -> Insert<'q, E> {
+        Insert::new(self.executor.as_ref(), table)
     }
 
-    pub fn query_builder(self) -> QueryBuilder<'q, E::DB> {
+    pub fn update<'q>(&'q self, table: &'q str) -> Update<'q, E> {
+        Update::new(self.executor.as_ref(), table)
+    }
+
+    pub fn delete<'q>(&'q self, table: &'q str) -> Delete<'q, E> {
+        Delete::new(self.executor.as_ref(), table)
+    }
+
+    pub fn query_builder<'q>(&'q self) -> QueryBuilder<'q, E::DB> {
         QueryBuilder::default()
     }
 }

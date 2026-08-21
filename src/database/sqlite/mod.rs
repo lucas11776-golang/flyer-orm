@@ -81,44 +81,6 @@ impl Executor for SQLite {
         ))
     }
 
-    // async fn fetch_one<'c, O>(
-    //     &'c self,
-    //     sql: String,
-    //     arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    // ) -> Result<O>
-    // where
-    //     O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    // {
-    //     sqlx::query_as_with::<Self::DB, O, _>(&sql, arguments)
-    //         .fetch_one(&self.pool)
-    //         .await
-    //         .map_err(Into::into)
-    // }
-
-
-    // async fn fetch_one_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<O>
-    // where
-    //     O: Send + Unpin,
-    //     O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    // {
-    //     sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-    //         .fetch_one(self.pool())
-    //         .await
-    //         .map_err(Into::into)
-    // }
-        
-    // async fn fetch_optional_scalar<'a, O>(&'a self, sql: String, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Option<O>>
-    // where
-    //     O: Send + Unpin,
-    //     O: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>
-    // {
-    //     sqlx::query_scalar_with::<Self::DB, O, _>(&sql, arguments)
-    //         .fetch_optional(self.pool())
-    //         .await
-    //         .map_err(Into::into)
-    // }
-
-
     async fn insert<'q>(&'q self, statement: &'q Statement<Self::DB>) -> Result<impl QueryResult> {
         let (sql, arguments) = QueryBuilder::new(false).insert(statement);
 

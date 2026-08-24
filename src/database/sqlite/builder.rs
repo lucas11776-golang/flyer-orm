@@ -1,7 +1,7 @@
 use std::{fmt::Write, mem};
 
 use crate::{
-    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause, types::ArgsAsRef,
+    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause, database::Builder, types::ArgsAsRef,
 };
 
 pub struct QueryBuilder<'c, DB: sqlx::Database> {
@@ -10,25 +10,25 @@ pub struct QueryBuilder<'c, DB: sqlx::Database> {
     dry_run: bool,
 }
 
-impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
-    pub fn new(dry_run: bool) -> Self {
+impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
+    fn new(dry_run: bool) -> Self {
         Self {
             arguments: Default::default(),
             sql: String::new(),
-            dry_run,
+            dry_run: dry_run,
         }
     }
 
     #[inline]
-    fn push_placeholder(&mut self) {
-        self.sql.push('?');
+    fn push_placeholder(&mut self, prefix: &str, suffix: &str) {
+        let _ = write!(self.sql, "{}?{}", prefix, suffix);
     }
 
-    pub fn to_sql(self, statement: &Statement<DB>) -> String {
+    fn to_sql(&mut self, statement: &'c Statement<DB>) -> String {
         self.query(statement).0
     }
 
-    pub fn insert(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
+    fn insert(&mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.sql.push_str("INSERT INTO ");
         self.sql.push_str(&statement.table);
 
@@ -50,7 +50,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
             if idx > 0 {
                 self.sql.push_str(", ");
             }
-            self.push_placeholder();
+            self.push_placeholder("", "");
             self.bind_to(val);
         }
         self.sql.push(')');
@@ -58,7 +58,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.compile()
     }
 
-    pub fn update(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
+    fn update(&mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.sql.push_str("UPDATE ");
         self.sql.push_str(&statement.table);
         self.sql.push_str(" SET ");
@@ -68,7 +68,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
                 self.sql.push_str(", ");
             }
             let _ = write!(self.sql, "{} = ", col);
-            self.push_placeholder();
+            self.push_placeholder("", "");
             self.bind_to(val);
         }
 
@@ -77,7 +77,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.compile()
     }
 
-    pub fn delete(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
+    fn delete(&mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.sql.push_str("DELETE FROM ");
         self.sql.push_str(&statement.table);
 
@@ -86,7 +86,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self.compile()
     }
 
-    pub fn query(mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
+    fn query(&mut self, statement: &'c Statement<DB>) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         self.select(&statement.fields)
             .from(&statement.table)
             .joins(&statement.join)
@@ -99,7 +99,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
             .compile()
     }
 
-    pub fn select(&mut self, fields: &[String]) -> &mut Self {
+    fn select(&mut self, fields: &[String]) -> &mut Self {
         self.sql.push_str("SELECT ");
 
         if fields.is_empty() {
@@ -117,14 +117,14 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn from(&mut self, table: &str) -> &mut Self {
+    fn from(&mut self, table: &str) -> &mut Self {
         self.sql.push_str(" FROM ");
         self.sql.push_str(table);
 
         self
     }
 
-    pub fn joins(&mut self, joins: &'c [Join]) -> &mut Self {
+    fn joins(&mut self, joins: &'c [Join]) -> &mut Self {
         for join in joins {
             let _ = write!(
                 self.sql,
@@ -136,7 +136,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn conditions(&mut self, conditions: &'c [WhereClause<DB>], is_root: bool) -> &mut Self {
+    fn conditions(&mut self, conditions: &'c [WhereClause<DB>], is_root: bool) -> &mut Self {
         if conditions.is_empty() {
             return self;
         }
@@ -159,12 +159,12 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
                             // SQLite uses || for string concatenation and standard LIKE (case-insensitive for ASCII by default)
                             let sql_op = if op.contains("not") { "NOT LIKE" } else { "LIKE" };
                             let _ = write!(self.sql, "{} {} '%' || ", column, sql_op);
-                            self.push_placeholder();
+                            self.push_placeholder("", "");
                             self.sql.push_str(" || '%'");
                         }
                         _ => {
                             let _ = write!(self.sql, "{} {} ", column, operator);
-                            self.push_placeholder();
+                            self.push_placeholder("", "");
                         }
                     }
 
@@ -189,7 +189,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
                         if v_idx > 0 {
                             self.sql.push_str(", ");
                         }
-                        self.push_placeholder();
+                        self.push_placeholder("", "");
                         self.bind_to(val);
                     }
 
@@ -200,12 +200,12 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
                     let op = if *negated { "NOT BETWEEN" } else { "BETWEEN" };
                     let _ = write!(self.sql, "{} {} ", column, op);
 
-                    self.push_placeholder();
+                    self.push_placeholder("", "");
                     self.bind_to(low);
 
                     self.sql.push_str(" AND ");
 
-                    self.push_placeholder();
+                    self.push_placeholder("", "");
                     self.bind_to(high);
                 }
 
@@ -220,7 +220,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn group_by(&mut self, group_by: &'c Option<String>) -> &mut Self {
+    fn group_by(&mut self, group_by: &'c Option<String>) -> &mut Self {
         if let Some(column) = group_by {
             self.sql.push_str(" GROUP BY ");
             self.sql.push_str(column);
@@ -229,7 +229,7 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn having(&mut self, having: &'c [Having<DB>]) -> &mut Self {
+    fn having(&mut self, having: &'c [Having<DB>]) -> &mut Self {
         if having.is_empty() {
             return self;
         }
@@ -243,14 +243,14 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
 
             let _ = write!(self.sql, "{} {} ", h.column, h.operator);
 
-            self.push_placeholder();
+            self.push_placeholder("", "");
             self.bind_to(&h.value);
         }
 
         self
     }
 
-    pub fn order_by(&mut self, order_by: &'c [OrderValue]) -> &mut Self {
+    fn order_by(&mut self, order_by: &'c [OrderValue]) -> &mut Self {
         if order_by.is_empty() {
             return self;
         }
@@ -267,27 +267,27 @@ impl<'c, DB: sqlx::Database> QueryBuilder<'c, DB> {
         self
     }
 
-    pub fn limit(&mut self, limit: &'c Option<Limit<DB>>) -> &mut Self {
+    fn limit(&mut self, limit: &'c Option<Limit<DB>>) -> &mut Self {
         if let Some(limit) = limit {
             self.bind_to(&limit.value);
             self.sql.push_str(" LIMIT ");
-            self.push_placeholder();
+            self.push_placeholder("", "");
         }
 
         self
     }
 
-    pub fn offset(&mut self, offset: &'c Option<Offset<DB>>) -> &mut Self {
+    fn offset(&mut self, offset: &'c Option<Offset<DB>>) -> &mut Self {
         if let Some(offset) = offset {
             self.bind_to(&offset.value);
             self.sql.push_str(" OFFSET ");
-            self.push_placeholder();
+            self.push_placeholder("", "");
         }
 
         self
     }
 
-    pub fn compile(&mut self) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
+    fn compile(&mut self) -> (String, Vec<&'c Box<dyn Bindable<DB>>>) {
         (mem::take(&mut self.sql), mem::take(&mut self.arguments))
     }
 

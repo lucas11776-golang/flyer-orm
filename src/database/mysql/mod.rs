@@ -1,13 +1,5 @@
 use crate::{
-    Entity,
-    Executor,
-    MySqlPool,
-    Pagination,
-    QueryResult,
-    Result,
-    database::mysql::builder::QueryBuilder,
-    query::Statement,
-    utils::to_args,
+    Entity, Executor, MySqlPool, QueryResult, Result, database::{Builder, mysql::builder::QueryBuilder}, query::Statement, utils::to_args,
 };
 
 mod builder;
@@ -59,6 +51,10 @@ impl Executor for MySQL {
 
     fn from(pool: sqlx::Pool<Self::DB>) -> Self {
         Self { pool }
+    }
+
+    fn builder<'a>(&self, dry_run: bool) -> impl Builder<'a, Self::DB> {
+        QueryBuilder::new(dry_run)
     }
 
     fn to_sql<'a>(&'a self, statement: &'a Statement<Self::DB>) -> String {
@@ -144,44 +140,5 @@ impl Executor for MySQL {
             .await
             .map(|total| total)
             .map_err(Into::into)
-    }
-
-    async fn all<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        let (sql, arguments) = QueryBuilder::new(false).query(statement);
-
-        self
-            .fetch_all(sql, arguments)
-            .await
-    }
-
-    async fn first<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        let (sql, arguments) = QueryBuilder::new(false).query(statement);
-        
-        self
-            .fetch_one(sql, arguments)
-            .await    
-    }
-
-    async fn paginate<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
-    {
-        let (items, total) = tokio::try_join!(
-            self.all::<O>(statement),
-            self.count(statement)
-        )?;
-
-        Ok(Pagination {
-            total: total,
-            page: statement.page.unwrap(),
-            per_page: statement.limit.as_ref().unwrap().value.parse().unwrap(),
-            items: items,
-        })
     }
 }

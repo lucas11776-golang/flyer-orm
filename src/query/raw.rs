@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sqlx::IntoArguments;
 
-use crate::{Entity, Executor, Result, types::{Args, ArgsAsRef, Bindable}};
+use crate::{Entity, Executor, Result, types::Bindable, utils::args_as_ref};
 
 pub struct Raw<E: Executor> {
     sql: Result<String>,
@@ -24,19 +24,11 @@ impl <E: Executor>Raw<E> {
     where
         V: Bindable<E::DB>,
     {
-        self.arguments.push(Box::new(value));
+        self
+            .arguments
+            .push(Box::new(value));
         self
     }
-}
-
-pub fn args_as_ref<'a, DB>(arguments: &'a Args<DB>) -> ArgsAsRef<'a, DB>
-where
-    DB: sqlx::Database
-{
-    arguments
-        .iter()
-        .map(|v| v)
-        .collect()
 }
 
 impl <E: Executor>Raw<E>

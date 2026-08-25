@@ -119,8 +119,16 @@ impl <E: Executor>Query<E> {
         self.join_push(JoinType::CrossJoin, table, column, operator, column_table)
     }
 
+    fn where_push(mut self, clause: WhereClause<E::DB>) -> Self {
+        self
+            .statement
+            .conditions
+            .push(clause);
+        self
+    }
+
     pub fn r#where<V>(
-        mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
@@ -128,13 +136,12 @@ impl <E: Executor>Query<E> {
     where
         V: Bindable<E::DB>,
     {
-        self.statement.conditions.push(WhereClause::Clause {
+        self.where_push(WhereClause::Clause {
             connector: Connector::And,
             column: column.into(),
             operator: operator.into(),
             value: Box::new(value),
-        });
-        self
+        })
     }
 
     #[inline]
@@ -151,7 +158,7 @@ impl <E: Executor>Query<E> {
     }
 
     pub fn or_where<V>(
-        mut self,
+        self,
         column: impl Into<String>,
         operator: impl Into<String>,
         value: V,
@@ -159,16 +166,79 @@ impl <E: Executor>Query<E> {
     where
         V: Bindable<E::DB>,
     {
-        self.statement.conditions.push(WhereClause::Clause {
+        self.where_push(WhereClause::Clause {
             connector: Connector::Or,
             column: column.into(),
             operator: operator.into(),
             value: Box::new(value),
-        });
-        self
+        })
     }
 
-    pub fn where_group<F>(mut self, callback: F) -> Self
+    pub fn where_null(self, column: impl Into<String>, is_null: bool) -> Self {
+        self.where_push(WhereClause::NullCheck {
+            column: column.into(),
+            is_null: is_null,
+            connector: Connector::And,
+        })
+    }
+
+    pub fn where_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<E::DB> + 'static,
+    {
+        self.where_push(WhereClause::In {
+            column: column.into(),
+            negated: false,
+            values: items
+                .into_iter()
+                .map(|v| Box::new(v) as Box<dyn Bindable<E::DB>>)
+                .collect(),
+            connector: Connector::And,
+        })
+    }
+
+    pub fn where_not_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<E::DB> + 'static,
+    {
+        self.where_push(WhereClause::In {
+            column: column.into(),
+            negated: true,
+            values: items
+                .into_iter()
+                .map(|v| Box::new(v) as Box<dyn Bindable<E::DB>>)
+                .collect(),
+            connector: Connector::And,
+        })
+    }
+
+    pub fn where_in_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self.where_push(WhereClause::Between {
+            column: column.into(),
+            negated: false,
+            low: Box::new(start),
+            high: Box::new(end),
+            connector: Connector::And
+        })
+    }
+
+    pub fn where_not_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<E::DB>,
+    {
+        self.where_push(WhereClause::Between {
+            column: column.into(),
+            negated: true,
+            low: Box::new(start),
+            high: Box::new(end),
+            connector: Connector::And
+        })
+    }
+
+    pub fn where_group<F>(self, callback: F) -> Self
     where
         F: FnOnce(&mut WhereGroup<E::DB>),
     {
@@ -176,11 +246,10 @@ impl <E: Executor>Query<E> {
 
         callback(&mut group);
 
-        self.statement.conditions.push(WhereClause::Group {
+        self.where_push(WhereClause::Group {
             connector: Connector::And,
             conditions: group.conditions,
-        });
-        self
+        })
     }
 
     pub fn group_by(mut self, column: impl Into<String>) -> Self {

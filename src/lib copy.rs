@@ -30,8 +30,7 @@ pub trait Entity {}
 
 pub use flyer_orm_derive::Entity;
 
-static CONNECTIONS: LazyLock<RwLock<Connections>> =
-    LazyLock::new(|| RwLock::new(Connections::new()));
+static CONNECTIONS: LazyLock<RwLock<Connections>> = LazyLock::new(|| RwLock::new(Connections::new()));
 
 #[derive(Clone)]
 pub struct Database<E: Executor + 'static> {

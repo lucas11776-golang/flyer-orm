@@ -1,4 +1,4 @@
-use crate::{Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause, types::ArgsAsRef};
+use crate::{query::{Having, Join, Limit, Offset, OrderValue, Statement}, types::{ArgsAsRef, Bindable, WhereClause}};
 
 pub mod mysql;
 pub mod postgres;

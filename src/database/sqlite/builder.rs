@@ -1,7 +1,9 @@
 use std::{fmt::Write, mem};
 
 use crate::{
-    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause, database::Builder, types::ArgsAsRef,
+    database::Builder,
+    query::{Having, Join, Limit, Offset, OrderValue, Statement},
+    types::{ArgsAsRef, Bindable, WhereClause},
 };
 
 pub struct QueryBuilder<'c, DB: sqlx::Database> {
@@ -10,7 +12,7 @@ pub struct QueryBuilder<'c, DB: sqlx::Database> {
     dry_run: bool,
 }
 
-impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
+impl <'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
     fn new(dry_run: bool) -> Self {
         Self {
             arguments: Default::default(),
@@ -129,7 +131,11 @@ impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
             let _ = write!(
                 self.sql,
                 " {} {} ON {} {} {}",
-                join.join_type.to_string(), join.table, join.column, join.operator, join.column_table
+                join.join_type.to_string(),
+                join.table,
+                join.column,
+                join.operator,
+                join.column_table
             );
         }
 
@@ -151,13 +157,22 @@ impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
             }
 
             match cond {
-                WhereClause::Clause { column, operator, value, .. } => {
+                WhereClause::Clause {
+                    column,
+                    operator,
+                    value,
+                    ..
+                } => {
                     let op = operator.trim().to_lowercase();
 
                     match op.as_str() {
                         "like" | "ilike" | "not like" | "not ilike" => {
                             // SQLite uses || for string concatenation and standard LIKE (case-insensitive for ASCII by default)
-                            let sql_op = if op.contains("not") { "NOT LIKE" } else { "LIKE" };
+                            let sql_op = if op.contains("not") {
+                                "NOT LIKE"
+                            } else {
+                                "LIKE"
+                            };
                             let _ = write!(self.sql, "{} {} '%' || ", column, sql_op);
                             self.push_placeholder("", "");
                             self.sql.push_str(" || '%'");
@@ -171,12 +186,19 @@ impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
                     self.bind_to(value);
                 }
 
-                WhereClause::NullCheck { column, is_null, .. } => {
+                WhereClause::NullCheck {
+                    column, is_null, ..
+                } => {
                     let op = if *is_null { "IS NULL" } else { "IS NOT NULL" };
                     let _ = write!(self.sql, "{} {}", column, op);
                 }
 
-                WhereClause::In { column, negated, values, .. } => {
+                WhereClause::In {
+                    column,
+                    negated,
+                    values,
+                    ..
+                } => {
                     if values.is_empty() {
                         self.sql.push_str("1 = 0");
                         continue;
@@ -196,7 +218,13 @@ impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
                     self.sql.push(')');
                 }
 
-                WhereClause::Between { column, negated, low, high, .. } => {
+                WhereClause::Between {
+                    column,
+                    negated,
+                    low,
+                    high,
+                    ..
+                } => {
                     let op = if *negated { "NOT BETWEEN" } else { "BETWEEN" };
                     let _ = write!(self.sql, "{} {} ", column, op);
 
@@ -209,7 +237,10 @@ impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
                     self.bind_to(high);
                 }
 
-                WhereClause::Group { conditions: sub_conds, .. } => {
+                WhereClause::Group {
+                    conditions: sub_conds,
+                    ..
+                } => {
                     self.sql.push('(');
                     self.conditions(sub_conds, false);
                     self.sql.push(')');

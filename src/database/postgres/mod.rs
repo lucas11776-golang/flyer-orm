@@ -1,5 +1,9 @@
 use crate::{
-    Entity, Executor, PgPool, QueryResult, Result, database::{Builder, postgres::builder::QueryBuilder}, query::Statement, utils::to_args,
+    Entity, Executor, PgPool, Result,
+    database::{Builder, postgres::builder::QueryBuilder},
+    query::Statement,
+    types::QueryResult,
+    utils::to_args,
 };
 
 mod builder;
@@ -66,7 +70,7 @@ impl Executor for Postgres {
         &'q self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'q>,
-    ) -> Result<impl crate::QueryResult> {
+    ) -> Result<impl QueryResult> {
         sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
             .await

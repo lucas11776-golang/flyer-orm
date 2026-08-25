@@ -1,5 +1,9 @@
 use crate::{
-    Entity, Executor, QueryResult, Result, SqlitePool, database::{Builder, sqlite::builder::QueryBuilder}, query::Statement, utils::to_args,
+    Entity, Executor, Result, SqlitePool,
+    database::{Builder, sqlite::builder::QueryBuilder},
+    query::Statement,
+    types::QueryResult,
+    utils::to_args,
 };
 
 mod builder;
@@ -69,7 +73,7 @@ impl Executor for SQLite {
         &'c self,
         sql: String,
         arguments: <Self::DB as sqlx::Database>::Arguments<'c>,
-    ) -> Result<impl crate::QueryResult> {
+    ) -> Result<impl QueryResult> {
         let result = sqlx::query_with::<Self::DB, _>(&sql, arguments)
             .execute(&self.pool)
             .await?;

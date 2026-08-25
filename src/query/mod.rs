@@ -156,3 +156,277 @@ pub struct Pagination<Entity> {
     pub per_page: i64,
     pub items: Vec<Entity>
 }
+
+
+pub trait WhereClauseBuilder<DB: sqlx::Database>: Sized {
+    fn push_where(self, clause: WhereClause<DB>) -> Self;
+
+    fn r#where<V>(self, column: impl Into<String>, operator: impl Into<String>, value: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.push_where(WhereClause::Clause {
+            connector: Connector::And,
+            column: column.into(),
+            operator: operator.into(),
+            value: Box::new(value),
+        })
+    }
+
+    #[inline]
+    fn and_where<V>(self, column: impl Into<String>, operator: impl Into<String>, value: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.r#where(column, operator, value)
+    }
+
+    fn or_where<V>(self, column: impl Into<String>, operator: impl Into<String>, value: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.push_where(WhereClause::Clause {
+            connector: Connector::Or,
+            column: column.into(),
+            operator: operator.into(),
+            value: Box::new(value),
+        })
+    }
+
+    fn where_null(self, column: impl Into<String>, is_null: bool) -> Self {
+        self.push_where(WhereClause::NullCheck {
+            column: column.into(),
+            is_null,
+            connector: Connector::And,
+        })
+    }
+
+    #[inline]
+    fn and_where_null(self, column: impl Into<String>, is_null: bool) -> Self {
+        self.where_null(column, is_null)
+    }
+
+    fn or_where_null(self, column: impl Into<String>, is_null: bool) -> Self {
+        self.push_where(WhereClause::NullCheck {
+            column: column.into(),
+            is_null,
+            connector: Connector::Or,
+        })
+    }
+
+    fn where_not_null(self, column: impl Into<String>) -> Self {
+        self.where_null(column, false)
+    }
+
+    #[inline]
+    fn and_where_not_null(self, column: impl Into<String>) -> Self {
+        self.where_not_null(column)
+    }
+
+    fn or_where_not_null(self, column: impl Into<String>) -> Self {
+        self.or_where_null(column, false)
+    }
+
+    fn where_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<DB> + 'static,
+    {
+        self.push_where(WhereClause::In {
+            column: column.into(),
+            negated: false,
+            values: items
+                .into_iter()
+                .map(|v| Box::new(v) as Box<dyn Bindable<DB>>)
+                .collect(),
+            connector: Connector::And,
+        })
+    }
+
+    #[inline]
+    fn and_where_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<DB> + 'static,
+    {
+        self.where_in(column, items)
+    }
+
+    fn or_where_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<DB> + 'static,
+    {
+        self.push_where(WhereClause::In {
+            column: column.into(),
+            negated: false,
+            values: items
+                .into_iter()
+                .map(|v| Box::new(v) as Box<dyn Bindable<DB>>)
+                .collect(),
+            connector: Connector::Or,
+        })
+    }
+
+    fn where_not_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<DB> + 'static,
+    {
+        self.push_where(WhereClause::In {
+            column: column.into(),
+            negated: true,
+            values: items
+                .into_iter()
+                .map(|v| Box::new(v) as Box<dyn Bindable<DB>>)
+                .collect(),
+            connector: Connector::And,
+        })
+    }
+
+    #[inline]
+    fn and_where_not_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<DB> + 'static,
+    {
+        self.where_not_in(column, items)
+    }
+
+    fn or_where_not_in<V>(self, column: impl Into<String>, items: Vec<V>) -> Self
+    where
+        V: Bindable<DB> + 'static,
+    {
+        self.push_where(WhereClause::In {
+            column: column.into(),
+            negated: true,
+            values: items
+                .into_iter()
+                .map(|v| Box::new(v) as Box<dyn Bindable<DB>>)
+                .collect(),
+            connector: Connector::Or,
+        })
+    }
+
+    fn where_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.push_where(WhereClause::Between {
+            column: column.into(),
+            negated: false,
+            low: Box::new(start),
+            high: Box::new(end),
+            connector: Connector::And,
+        })
+    }
+
+    #[inline]
+    fn where_in_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.where_between(column, start, end)
+    }
+
+    #[inline]
+    fn and_where_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.where_between(column, start, end)
+    }
+
+    #[inline]
+    fn and_where_in_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.where_between(column, start, end)
+    }
+
+    fn or_where_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.push_where(WhereClause::Between {
+            column: column.into(),
+            negated: false,
+            low: Box::new(start),
+            high: Box::new(end),
+            connector: Connector::Or,
+        })
+    }
+
+    #[inline]
+    fn or_where_in_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.or_where_between(column, start, end)
+    }
+
+    fn where_not_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.push_where(WhereClause::Between {
+            column: column.into(),
+            negated: true,
+            low: Box::new(start),
+            high: Box::new(end),
+            connector: Connector::And,
+        })
+    }
+
+    #[inline]
+    fn and_where_not_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.where_not_between(column, start, end)
+    }
+
+    fn or_where_not_between<V>(self, column: impl Into<String>, start: V, end: V) -> Self
+    where
+        V: Bindable<DB>,
+    {
+        self.push_where(WhereClause::Between {
+            column: column.into(),
+            negated: true,
+            low: Box::new(start),
+            high: Box::new(end),
+            connector: Connector::Or,
+        })
+    }
+
+    fn where_group<F>(self, callback: F) -> Self
+    where
+        F: FnOnce(&mut WhereGroup<DB>),
+    {
+        let mut group = WhereGroup::new();
+        
+        callback(&mut group);
+
+        self.push_where(WhereClause::Group {
+            connector: Connector::And,
+            conditions: group.conditions,
+        })
+    }
+
+    #[inline]
+    fn and_where_group<F>(self, callback: F) -> Self
+    where
+        F: FnOnce(&mut WhereGroup<DB>),
+    {
+        self.where_group(callback)
+    }
+
+    fn or_where_group<F>(self, callback: F) -> Self
+    where
+        F: FnOnce(&mut WhereGroup<DB>),
+    {
+        let mut group = WhereGroup::new();
+        callback(&mut group);
+
+        self.push_where(WhereClause::Group {
+            connector: Connector::Or,
+            conditions: group.conditions,
+        })
+    }
+}

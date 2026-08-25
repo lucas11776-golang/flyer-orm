@@ -119,7 +119,7 @@ impl<E: Executor + 'static> Database<E> {
     }
 
     #[inline]
-    pub fn query_builder<'q>(&self, sql: &'q str) -> QueryBuilder<'q, E::DB> {
+    pub fn query_builder<'q>(&self, sql: &str) -> QueryBuilder<'q, E::DB> {
         QueryBuilder::new(sql)
     }
 }

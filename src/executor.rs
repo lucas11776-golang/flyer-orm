@@ -29,8 +29,17 @@ pub trait Executor: Send + Sync {
 
     async fn execute<'a>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<impl QueryResult>;
 
-    // TODO: move to utils
+    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
 
+    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
+
+    async fn count<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<i64>;
+
+    async fn delete<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
+
+    async fn insert_as<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
 
     async fn fetch_one<O>(
         &self,
@@ -46,8 +55,6 @@ pub trait Executor: Send + Sync {
             .fetch_one(self.pool())
             .await
             .map_err(Into::into)
-
-        // todo!()
     }
 
     async fn fetch_all<O>(
@@ -94,7 +101,6 @@ pub trait Executor: Send + Sync {
             .map_err(Into::into)
     }
 
-
     async fn fetch_all_scalar<'a, O>(&'a self, sql: &'a str, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Vec<O>>
     where
         O: Send + Unpin,
@@ -108,48 +114,6 @@ pub trait Executor: Send + Sync {
             .await
             .map_err(Into::into)
     }
-
-    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
-
-    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
-
-    async fn count<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<i64>;
-
-    // async fn count<'a>(&self, statement: &'a Statement<Self::DB>) -> Result<i64>
-    // where
-
-    //     i64: Send + Unpin,
-    //     i64: sqlx::Type<Self::DB> + for<'r> sqlx::Decode<'r, Self::DB>,
-    //     usize: ColumnIndex<<Self::DB as Database>::Row>,
-    //     <Self::DB as sqlx::Database>::Arguments<'a>: IntoArguments<'a, Self::DB>,
-    //     for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
-    // {
-    //     let (sql, arguments) = self.builder(false)
-    //         .select(&["COUNT(*) AS total".into()])
-    //         .from(&statement.table)
-    //         .joins(&statement.join)
-    //         .conditions(&statement.conditions, true)
-    //         .group_by(&statement.group_by)
-    //         .having(&statement.having)
-    //         .compile();
-
-    //     self
-    //         .fetch_one_scalar(&sql, to_args(arguments))
-    //         .await
-            
-
-    //     // sqlx::query_scalar_with::<Self::DB, i64, _>(&sql, to_args(arguments))
-    //     //     .fetch_one(&self.pool)
-    //     //     .await
-    //     //     .map(|total| total)
-    //     //     .map_err(Into::into)
-    // }
-
-    async fn delete<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
-
-    async fn insert_as<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
 
     async fn all<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
     where

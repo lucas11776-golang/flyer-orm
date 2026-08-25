@@ -3,7 +3,7 @@ use std::sync::{Arc, LazyLock};
 use crate::connections::Connections;
 use crate::query::scalar::Scalar;
 use crate::query::{delete::Delete, insert::Insert, query::Query, raw::Raw, update::Update};
-use crate::query::{Having, Join, Limit, Offset, OrderValue, Pagination, Statement};
+use crate::query::{Having, Join, Limit, Offset, OrderValue, Statement};
 use crate::types::{Bindable, QueryResult, WhereClause};
 
 pub use database::mysql::MySQL;

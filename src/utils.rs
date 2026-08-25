@@ -1,4 +1,4 @@
-use crate::types::Bindable;
+use crate::types::{Args, ArgsAsRef, Bindable};
 
 
 
@@ -13,4 +13,15 @@ where
     }
 
     return arguments;
+}
+
+
+pub fn args_as_ref<'a, DB>(arguments: &'a Args<DB>) -> ArgsAsRef<'a, DB>
+where
+    DB: sqlx::Database
+{
+    arguments
+        .iter()
+        .map(|v| v)
+        .collect()
 }

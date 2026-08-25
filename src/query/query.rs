@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use sqlx::IntoArguments;
+
 use crate::{
     Entity,
     Executor,
@@ -267,7 +269,9 @@ impl <E: Executor>Query<E> {
 
     pub async fn first<O>(self) -> Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <E::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
         self
             .executor
@@ -277,7 +281,9 @@ impl <E: Executor>Query<E> {
 
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <E::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
     {
         self
             .executor
@@ -300,8 +306,10 @@ impl <E: Executor>Query<E> {
     }
 
     pub async fn paginate<O>(mut self, limit: i64, page: i64) -> Result<Pagination<O>>
-    where
+    where 
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <E::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
         for<'i> i64: sqlx::Encode<'i, E::DB> + sqlx::Type<E::DB>,
     {
         let limit = limit.max(0);

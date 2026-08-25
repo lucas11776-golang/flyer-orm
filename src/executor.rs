@@ -1,6 +1,7 @@
 use sqlx::{ColumnIndex, IntoArguments};
 use sqlx::{Database, Pool};
 
+use crate::database::Builder;
 use crate::types::Bindable;
 use crate::utils::to_args;
 use crate::{Entity, Result};
@@ -20,14 +21,25 @@ pub trait Executor: Send + Sync {
 
     fn from(pool: Pool<Self::DB>) -> Self;
 
+    fn builder<'a>(&self, dry_run: bool) -> impl Builder<'a, Self::DB>;
+
     fn to_sql<'a>(&self, statement: &'a Statement<Self::DB>) -> String;
 
     fn pool(&self) -> &Pool<Self::DB>;
 
     async fn execute<'a>(&'a self, sql: String, arguments: <Self::DB as Database>::Arguments<'a>) -> Result<impl QueryResult>;
 
-    // TODO: move to utils
+    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
 
+    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
+
+    async fn count<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<i64>;
+
+    async fn delete<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
+
+    async fn insert_as<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
 
     async fn fetch_one<O>(
         &self,
@@ -43,8 +55,6 @@ pub trait Executor: Send + Sync {
             .fetch_one(self.pool())
             .await
             .map_err(Into::into)
-
-        // todo!()
     }
 
     async fn fetch_all<O>(
@@ -91,7 +101,6 @@ pub trait Executor: Send + Sync {
             .map_err(Into::into)
     }
 
-
     async fn fetch_all_scalar<'a, O>(&'a self, sql: &'a str, arguments: <Self::DB as sqlx::Database>::Arguments<'a>) -> Result<Vec<O>>
     where
         O: Send + Unpin,
@@ -106,27 +115,52 @@ pub trait Executor: Send + Sync {
             .map_err(Into::into)
     }
 
-    async fn insert<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
-
-    async fn update<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
-
-    async fn count<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<i64>;
-
-    async fn delete<'a>(&'a self, statement: &'a Statement<Self::DB>) -> Result<impl QueryResult>;
-
-    async fn insert_as<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
-    where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
-
     async fn all<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Vec<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <Self::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        let (sql, arguments) = self
+            .builder(false)
+            .query(statement);
+
+        self
+            .fetch_all(sql, arguments)
+            .await
+    }
 
     async fn first<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<O>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <Self::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        let (sql, arguments) = self
+            .builder(false)
+            .query(statement);
+        
+        self
+            .fetch_one(sql, arguments)
+            .await    
+    }
 
-    async fn paginate<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>
+    async fn paginate<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>
     where
-        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as Database>::Row> + Send + Unpin;
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <Self::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        let (items, total) = tokio::try_join!(
+            self.all::<O>(statement),
+            self.count(statement)
+        )?;
+
+        Ok(Pagination {
+            total: total,
+            page: statement.page.unwrap(),
+            per_page: statement.limit.as_ref().unwrap().value.parse().unwrap(),
+            items: items,
+        })
+    }
 }

@@ -1,7 +1,9 @@
 use std::{fmt::Write, mem};
 
 use crate::{
-    Bindable, Having, Join, Limit, Offset, OrderValue, Statement, WhereClause, database::Builder, types::ArgsAsRef,
+    database::Builder,
+    query::{Having, Join, Limit, Offset, OrderValue, Statement},
+    types::{ArgsAsRef, Bindable, WhereClause},
 };
 
 pub struct QueryBuilder<'c, DB: sqlx::Database> {
@@ -11,7 +13,7 @@ pub struct QueryBuilder<'c, DB: sqlx::Database> {
     dry_run: bool,
 }
 
-impl<'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
+impl <'c, DB: sqlx::Database>Builder<'c, DB> for QueryBuilder<'c, DB> {
     fn new(dry_run: bool) -> Self {
         Self {
             arguments: Default::default(),

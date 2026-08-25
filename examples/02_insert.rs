@@ -1,16 +1,18 @@
+use flyer_orm::{Database, Entity, Executor, Postgres, Result, SQLite};
+use serde::Serialize;
 
-use flyer_orm::{Database, Entity, Executor, Result, SQLite};
+const USERS_TABLE_SCHEME: &'static str = "
+    CREATE TABLE users (
+        `uuid` VARCHAR(65535) PRIMARY KEY NOT NULL UNIQUE,
+        `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `first_name` VARCHAR(65535),
+        `last_name` VARCHAR(65535),
+        `email` VARCHAR(65535) NOT NULL,
+        `password` VARCHAR(65535) NOT NULL
+    );
+";
 
-const USERS_TABLE_SCHEME: &'static str = "CREATE TABLE users (
- `uuid` VARCHAR(65535) PRIMARY KEY NOT NULL UNIQUE,
- `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- `first_name` VARCHAR(65535),
- `last_name` VARCHAR(65535),
- `email` VARCHAR(65535) NOT NULL,
- `password` VARCHAR(65535) NOT NULL
-)";
-
-#[derive(Debug, Entity)]
+#[derive(Debug, Entity, Serialize)]
 pub struct User {
     pub uuid: String,
     pub created_at: String,
@@ -20,12 +22,12 @@ pub struct User {
     pub password: String,
 }
 
-pub fn db() -> Database<SQLite> {
-    Database::<SQLite>::connection(":memory:")
+pub fn db() -> Database<Postgres> {
+    Database::<Postgres>::connection("default")
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+pub async fn main() -> Result<()> {
     Database::add_connection("default", SQLite::new(":memory:").await?);
 
     let migrated = db()
@@ -55,5 +57,5 @@ async fn main() -> Result<()> {
 
     println!("\r\n\r\n\r\n\r\nUser: {:?}\r\n\r\n\r\n\r\n", user);
 
-    return Ok(());
+    Ok(())
 }

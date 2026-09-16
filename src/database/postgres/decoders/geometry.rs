@@ -8,6 +8,7 @@ use geo_types::{Geometry as GeoGeometry, Coord, LineString, Point, Polygon};
 
 pub type JsonMap = HashMap<String, Value>;
 
+#[derive(Clone)]
 pub struct Geometry {
     pub(crate) value: GeoGeometry
 }

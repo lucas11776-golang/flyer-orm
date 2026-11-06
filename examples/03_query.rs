@@ -1,4 +1,4 @@
-use flyer_orm::{Database, Entity, Executor, Postgres, Result, SQLite};
+use flyer_orm::{Database, Entity, Executor, Result, SQLite};
 use serde::Serialize;
 
 #[derive(Debug, Entity, Serialize)]
@@ -26,8 +26,8 @@ const USERS_TABLE_SCHEME: &'static str = "
         (4, 'Eggs', 65);
 ";
 
-pub fn db() -> Database<Postgres> {
-    Database::<Postgres>::connection("default")
+pub fn db() -> Database<SQLite> {
+    Database::<SQLite>::connection("default")
 }
 
 #[tokio::main]
@@ -61,7 +61,7 @@ pub async fn main() -> Result<()> {
     let product_name = String::from("Butter");
 
     db()
-        .raw("INSERT INTO products (name, price) VALUES ($1, $2)")
+        .raw("INSERT INTO products (name, price) VALUES (?, ?)")
         .bind(product_name.clone())
         .bind(150)
         .execute()
@@ -76,6 +76,15 @@ pub async fn main() -> Result<()> {
         .unwrap();
 
     println!("\r\nINSERTED PRODUCT {:?}", product);
+
+    // let product_not_found = db()
+    //     .query("products")
+    //     .r#where("name", "=", "Maize Meal")
+    //     .first_option::<Product>()
+    //     .await
+    //     .unwrap();
+
+    // println!("\r\nPRODUCT NOT FOUND {:?}", product_not_found.is_none());
 
     Ok(())
 }

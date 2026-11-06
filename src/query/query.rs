@@ -212,6 +212,15 @@ impl<E: Executor> Query<E> {
         self.executor.first(&self.statement).await
     }
 
+    pub async fn first_option<O>(self) -> Result<Option<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+        for<'b> <E::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, E::DB>,
+        for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
+    {
+        self.executor.first_option(&self.statement).await
+    }
+
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,

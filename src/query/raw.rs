@@ -39,6 +39,7 @@ where
     pub async fn execute(self) -> Result<()> {
         self
             .executor
+            // TODO: args are empty need to fix...
             .execute(String::from(self.sql?), Default::default())
             .await
             .map(|_| ())

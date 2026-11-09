@@ -37,10 +37,16 @@ where
     for<'c> &'c mut <E::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = E::DB>,
 {
     pub async fn execute(self) -> Result<()> {
+        // TODO: fix complex transfer of args.
+        let mut args = Default::default();
+
+        for arg in self.arguments {
+            arg.bind_to(&mut args).unwrap();
+        }
+
         self
             .executor
-            // TODO: args are empty need to fix...
-            .execute(String::from(self.sql?), Default::default())
+            .execute(String::from(self.sql?), args)
             .await
             .map(|_| ())
     }

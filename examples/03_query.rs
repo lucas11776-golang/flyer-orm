@@ -77,14 +77,14 @@ pub async fn main() -> Result<()> {
 
     println!("\r\nINSERTED PRODUCT {:?}", product);
 
-    // let product_not_found = db()
-    //     .query("products")
-    //     .r#where("name", "=", "Maize Meal")
-    //     .first_option::<Product>()
-    //     .await
-    //     .unwrap();
+    let product_not_found = db()
+        .query("products")
+        .r#where("name", "=", "Maize Meal")
+        .first_option::<Product>()
+        .await
+        .unwrap();
 
-    // println!("\r\nPRODUCT NOT FOUND {:?}", product_not_found.is_none());
+    println!("\r\nPRODUCT NOT FOUND {:?}", product_not_found.is_none());
 
     Ok(())
 }

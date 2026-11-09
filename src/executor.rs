@@ -56,6 +56,22 @@ pub trait Executor: Send + Sync {
             .map_err(Into::into)
     }
 
+    async fn fetch_optional<O>(
+        &self,
+        sql: String,
+        arguments: Vec<&Box<dyn Bindable<Self::DB>>>,
+    ) -> Result<Option<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
+        for <'b> <Self::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, Self::DB>,
+        for<'c> &'c mut <Self::DB as sqlx::Database>::Connection: sqlx::Executor<'c, Database = Self::DB>,
+    {
+        sqlx::query_as_with::<Self::DB, O, _>(&sql, to_args(arguments))
+            .fetch_optional(self.pool())
+            .await
+            .map_err(Into::into)
+    }
+
     async fn fetch_all<O>(
         &self,
         sql: String,
@@ -102,7 +118,7 @@ pub trait Executor: Send + Sync {
             .await    
     }
 
-    async fn first_option<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Option<O>>
+    async fn first_optional<'a, O>(&'a self, statement: &'a Statement<Self::DB>) -> Result<Option<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <Self::DB as sqlx::Database>::Row> + Send + Unpin,
         for <'b> <Self::DB as sqlx::Database>::Arguments<'b>: IntoArguments<'b, Self::DB>,
@@ -112,10 +128,9 @@ pub trait Executor: Send + Sync {
             .builder(false)
             .query(statement);
 
-        sqlx::query_as_with::<Self::DB, O, _>(&sql, to_args(arguments))
-            .fetch_optional(self.pool())
+        self
+            .fetch_optional(sql, arguments)
             .await
-            .map_err(Into::into)
     }
 
     async fn paginate<'a, O>(&self, statement: &'a Statement<Self::DB>) -> Result<Pagination<O>>

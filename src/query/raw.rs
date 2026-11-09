@@ -61,6 +61,16 @@ where
             .await
     }
 
+    pub async fn first_optional<O>(self) -> Result<Option<O>>
+    where
+        O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,
+    {
+        self
+            .executor
+            .fetch_optional(self.sql?, args_as_ref(&self.arguments))
+            .await
+    }
+
     pub async fn all<O>(self) -> Result<Vec<O>>
     where
         O: Entity + for<'r> sqlx::FromRow<'r, <E::DB as sqlx::Database>::Row> + Send + Unpin,

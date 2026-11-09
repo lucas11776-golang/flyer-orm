@@ -80,7 +80,7 @@ pub async fn main() -> Result<()> {
     let product_not_found = db()
         .query("products")
         .r#where("name", "=", String::from("Maize Meal"))
-        .first_option::<Product>()
+        .first_optional::<Product>()
         .await
         .unwrap();
 
